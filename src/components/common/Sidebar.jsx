@@ -594,16 +594,6 @@ export default function Sidebar() {
           to: '/treasurer/budgets/create',
           icon: PlusIcon,
         },
-        {
-          name: 'Cash Flow',
-          to: '/treasurer/cash-flow',
-          icon: CurrencyDollarIcon,
-        },
-        {
-          name: 'Financial Overview',
-          to: '/treasurer/financial-overview',
-          icon: PresentationChartBarIcon,
-        },
         // NEW: Quick access to financial statements
         {
           name: 'Financial Statements',
@@ -643,11 +633,6 @@ export default function Sidebar() {
           name: 'Journal Audit',
           to: '/accountant/journal-entries',
           icon: JournalIcon,
-        },
-        {
-          name: 'Trial Balance Review',
-          to: '/accountant/trial-balance',
-          icon: TrialBalanceIcon,
         },
         {
           name: 'Audit Reports',
