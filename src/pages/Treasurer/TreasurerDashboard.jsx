@@ -9,8 +9,6 @@ import {
   ArrowTrendingDownIcon,
   PlusIcon,
   ArrowPathIcon,
-  BanknotesIcon,
-  ExclamationTriangleIcon,
   DocumentTextIcon,
   EyeIcon,
   CheckCircleIcon,
@@ -30,7 +28,7 @@ import {
 } from 'recharts';
 import { treasurerService } from '../../services/treasurer';
 import { approvalService } from '../../services/approval';
-import { journalService } from '../../services/journal'; // Add this import
+import { journalService } from '../../services/journal';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import toast from 'react-hot-toast';
@@ -49,186 +47,109 @@ const TreasurerDashboard = () => {
     pendingAmount: 0,
     accountBalance: 0
   });
-  const [recentTransactions, setRecentTransactions] = useState([]);
   const [pendingBudgets, setPendingBudgets] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
-  const [alerts, setAlerts] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  const fetchDashboardData = async (showToast = false) => {
+ // In your fetchDashboardData function, update the calls to match the service:
+
+const fetchDashboardData = async (showToast = false) => {
   try {
     if (showToast) {
       setRefreshing(true);
     } else {
       setLoading(true);
     }
+    setError(null);
 
     console.log('📊 ========== FETCHING TREASURER DASHBOARD DATA ==========');
 
-    // Fetch all data including journal entries with PENDING status
+    // Fetch all data using your treasurerService
     const [
-      statsRes, 
-      transactionsRes, 
-      budgetsRes, 
-      trendsRes, 
-      categoriesRes, 
-      alertsRes, 
-      approvalsRes,
-      pendingJournalRes
+      statsRes,
+      budgetsRes,
+      trendsRes,
+      categoriesRes,
+      alertsRes,
+      pendingItemsRes
     ] = await Promise.allSettled([
       treasurerService.getDashboardStats(),
-      treasurerService.getExpenses({ perPage: 5 }),
-      treasurerService.getBudgets({ status: 'PENDING', perPage: 5 }),
+      treasurerService.getBudgets({ status: 'PENDING', perPage: 10 }),
       treasurerService.getTrends(6),
       treasurerService.getCategoryBreakdown('month'),
       treasurerService.getAlerts(),
-      approvalService.getPendingApprovals('journal_entry'),
-      journalService.getJournalEntries({ status: 'PENDING', perPage: 100 })
+      treasurerService.getPendingItems()
     ]);
 
-    // Log each response
-    console.log('📊 Stats response:', statsRes.status === 'fulfilled' ? statsRes.value : statsRes.reason);
-    console.log('📊 Approvals response:', approvalsRes.status === 'fulfilled' ? approvalsRes.value : approvalsRes.reason);
-    console.log('📊 Pending Journal response:', pendingJournalRes.status === 'fulfilled' ? pendingJournalRes.value : pendingJournalRes.reason);
-
-    // Process stats
+    // Process Stats
     if (statsRes.status === 'fulfilled' && statsRes.value) {
-      setStats(prev => ({ ...prev, ...statsRes.value }));
+      console.log('Stats data:', statsRes.value);
+      setStats({
+        totalIncome: statsRes.value.totalIncome || 0,
+        totalExpenses: statsRes.value.totalExpenses || 0,
+        netBalance: statsRes.value.netBalance || 0,
+        accountBalance: statsRes.value.accountBalance || 0,
+        pendingApprovals: statsRes.value.pendingApprovals || 0,
+        pendingAmount: statsRes.value.pendingAmount || 0
+      });
+    } else if (statsRes.status === 'rejected') {
+      console.error('Stats fetch failed:', statsRes.reason);
     }
 
-    // Process transactions
-    if (transactionsRes.status === 'fulfilled' && transactionsRes.value) {
-      setRecentTransactions(transactionsRes.value.expenses || []);
-    }
-
-    // Process pending budgets
+    // Process Pending Budgets
     if (budgetsRes.status === 'fulfilled' && budgetsRes.value) {
+      console.log('Budgets data:', budgetsRes.value);
       setPendingBudgets(budgetsRes.value.budgets || []);
     }
 
-    // Process trend data
+    // Process Trend Data
     if (trendsRes.status === 'fulfilled' && trendsRes.value) {
+      console.log('Trends data:', trendsRes.value);
       setTrendData(trendsRes.value);
     }
 
-    // Process category data
+    // Process Category Data
     if (categoriesRes.status === 'fulfilled' && categoriesRes.value) {
+      console.log('Categories data:', categoriesRes.value);
       setCategoryData(categoriesRes.value);
     }
 
-    // Process alerts
+    // Process Pending Items (for journal entries)
+    if (pendingItemsRes.status === 'fulfilled' && pendingItemsRes.value) {
+      console.log('Pending items:', pendingItemsRes.value);
+      const items = pendingItemsRes.value.items || [];
+      // Map pending items to approval format
+      const approvalItems = items.map(item => ({
+        id: item.id,
+        entityId: item.id,
+        description: item.title,
+        amount: item.amount,
+        status: 'PENDING',
+        submittedBy: item.submittedBy,
+        submittedAt: item.date,
+        source: item.type,
+        entryNumber: item.type === 'budget' ? `BUD-${item.id}` : `EXP-${item.id}`
+      }));
+      setPendingApprovals(approvalItems);
+      
+      // Update pending count from items
+      setStats(prev => ({
+        ...prev,
+        pendingApprovals: items.length
+      }));
+    }
+
+    // Process Alerts
     if (alertsRes.status === 'fulfilled' && alertsRes.value) {
-      setAlerts(alertsRes.value.alerts || []);
+      console.log('Alerts:', alertsRes.value);
+      // You can use alerts for notifications if needed
     }
-
-    // Collect all pending journal entries from both sources
-    let allPendingEntries = [];
-
-    // Process approval service response
-    if (approvalsRes.status === 'fulfilled' && approvalsRes.value) {
-      console.log('✅ APPROVALS SERVICE RESPONSE:', approvalsRes.value);
-      
-      // Check different response structures
-      let approvals = [];
-      if (approvalsRes.value.approvals) {
-        approvals = approvalsRes.value.approvals;
-        console.log('Found approvals in .approvals:', approvals.length);
-      } else if (Array.isArray(approvalsRes.value)) {
-        approvals = approvalsRes.value;
-        console.log('Response is array:', approvals.length);
-      } else if (approvalsRes.value.data && approvalsRes.value.data.approvals) {
-        approvals = approvalsRes.value.data.approvals;
-        console.log('Found approvals in .data.approvals:', approvals.length);
-      } else {
-        console.log('Response structure:', Object.keys(approvalsRes.value));
-        // If it's a single object, try to use it
-        if (approvalsRes.value.id) {
-          approvals = [approvalsRes.value];
-          console.log('Response is single object, converting to array');
-        }
-      }
-      
-      const approvalEntries = approvals.map(approval => {
-        console.log('Processing approval:', approval);
-        return {
-          id: approval.id || `approval-${Math.random()}`,
-          entityId: approval.entity_id || approval.entityId || approval.id,
-          description: approval.description || approval.metadata?.description || `Journal Entry #${approval.entity_id}`,
-          amount: approval.amount || approval.metadata?.amount || 0,
-          status: approval.status || 'PENDING',
-          submittedBy: approval.requester_name || approval.requester || 'Unknown',
-          submittedAt: approval.submitted_at || approval.created_at,
-          source: 'approval',
-          entryNumber: approval.entry_number || `JE-${approval.entity_id}`
-        };
-      });
-      
-      console.log('Processed approval entries:', approvalEntries.length);
-      allPendingEntries = [...allPendingEntries, ...approvalEntries];
-    } else if (approvalsRes.status === 'rejected') {
-      console.error('❌ Approvals service rejected:', approvalsRes.reason);
-    }
-
-    // Process journal service response (direct journal entries with PENDING status)
-    if (pendingJournalRes.status === 'fulfilled' && pendingJournalRes.value) {
-      console.log('✅ PENDING JOURNAL RESPONSE:', pendingJournalRes.value);
-      
-      const entries = pendingJournalRes.value.entries || [];
-      console.log('Raw journal entries:', entries.length);
-      
-      const journalEntries = entries.map(entry => {
-        console.log('Processing journal entry:', entry.id, entry.entry_number, entry.status);
-        return {
-          id: `je-${entry.id}`,
-          entityId: entry.id,
-          description: entry.description,
-          amount: entry.total_debit || entry.total_credit || 0,
-          status: entry.status,
-          submittedBy: entry.created_by_name || 'Unknown',
-          submittedAt: entry.created_at,
-          source: 'journal',
-          entryNumber: entry.entry_number,
-          lines: entry.lines
-        };
-      });
-      
-      console.log('Processed journal entries:', journalEntries.length);
-      allPendingEntries = [...allPendingEntries, ...journalEntries];
-    } else if (pendingJournalRes.status === 'rejected') {
-      console.error('❌ Pending journal service rejected:', pendingJournalRes.reason);
-    }
-
-    console.log('Total entries before dedup:', allPendingEntries.length);
-    
-    // Remove duplicates based on entityId
-    const uniqueEntries = allPendingEntries.reduce((acc, current) => {
-      const key = `${current.entityId}-${current.source}`;
-      if (!acc.find(item => `${item.entityId}-${item.source}` === key)) {
-        acc.push(current);
-      }
-      return acc;
-    }, []);
-
-    console.log('✅ FINAL PENDING ENTRIES:', uniqueEntries);
-    console.log('Entries with PENDING status:', uniqueEntries.filter(a => a.status === 'PENDING').length);
-    
-    setPendingApprovals(uniqueEntries);
-
-    // Calculate pending amount and count
-    const pendingAmount = uniqueEntries
-      .filter(a => a.status === 'PENDING')
-      .reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
-
-    setStats(prev => ({
-      ...prev,
-      pendingApprovals: uniqueEntries.filter(a => a.status === 'PENDING').length,
-      pendingAmount: pendingAmount
-    }));
 
     if (showToast) {
       toast.success('Dashboard refreshed');
@@ -236,29 +157,26 @@ const TreasurerDashboard = () => {
 
   } catch (error) {
     console.error('❌ Error fetching dashboard data:', error);
+    setError(error.message || 'Failed to load dashboard data');
     toast.error('Failed to load dashboard data');
   } finally {
     setLoading(false);
     setRefreshing(false);
   }
 };
-
   // Function to handle approval action
   const handleApprovalAction = async (entityId, action, notes = '') => {
     try {
       if (action === 'approve') {
-        await approvalService.approveApproval(entityId, { notes });
+        await journalService.updateJournalEntryStatus(entityId, 'APPROVED', { notes });
         toast.success('Journal entry approved successfully');
       } else if (action === 'reject') {
-        await approvalService.rejectApproval(entityId, { notes });
+        await journalService.updateJournalEntryStatus(entityId, 'REJECTED', { notes });
         toast.success('Journal entry rejected');
-      } else if (action === 'return') {
-        await approvalService.returnApproval(entityId, { notes });
-        toast.success('Journal entry returned for revision');
       }
       
       // Refresh data
-      fetchDashboardData();
+      fetchDashboardData(true);
     } catch (error) {
       console.error('Error processing approval:', error);
       toast.error('Failed to process approval');
@@ -316,6 +234,11 @@ const TreasurerDashboard = () => {
             <p className="mt-2 text-sm text-gray-600">
               Review and approve journal entries, manage budgets, and track financial activity
             </p>
+            {error && (
+              <p className="mt-2 text-sm text-red-600">
+                Error: {error}
+              </p>
+            )}
           </div>
           <div className="flex space-x-3">
             <button
@@ -335,27 +258,6 @@ const TreasurerDashboard = () => {
             </Link>
           </div>
         </div>
-
-        {/* Alerts */}
-        {alerts.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {alerts.map((alert, index) => (
-              <div
-                key={index}
-                className={`p-4 rounded-lg border ${
-                  alert.severity === 'high' ? 'bg-red-50 border-red-200 text-red-800' :
-                  alert.severity === 'medium' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
-                  'bg-blue-50 border-blue-200 text-blue-800'
-                }`}
-              >
-                <div className="flex items-center">
-                  <ExclamationTriangleIcon className="h-5 w-5 mr-3" />
-                  <p className="text-sm font-medium">{alert.message}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -387,6 +289,20 @@ const TreasurerDashboard = () => {
             color="yellow"
             isCurrency={false}
           />
+        </div>
+
+        {/* Debug Info - Remove in production */}
+        <div className="bg-gray-100 rounded-lg p-4 mb-8 text-xs">
+          <details>
+            <summary className="cursor-pointer font-medium">Debug Info (Click to expand)</summary>
+            <div className="mt-2">
+              <p><strong>Stats:</strong> {JSON.stringify(stats, null, 2)}</p>
+              <p><strong>Pending Budgets:</strong> {pendingBudgets.length}</p>
+              <p><strong>Pending Approvals:</strong> {pendingApprovals.length}</p>
+              <p><strong>Trend Data:</strong> {trendData.length} items</p>
+              <p><strong>Category Data:</strong> {categoryData.length} items</p>
+            </div>
+          </details>
         </div>
 
         {/* Pending Journal Entries Section */}
@@ -433,9 +349,6 @@ const TreasurerDashboard = () => {
                         <p className="text-xs text-gray-400">
                           {formatDate(approval.submittedAt)}
                         </p>
-                        <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full">
-                          {approval.source === 'journal' ? 'Direct Entry' : 'Approval Request'}
-                        </span>
                       </div>
                     </div>
                     <div className="text-right ml-4">
@@ -482,16 +395,22 @@ const TreasurerDashboard = () => {
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Income vs Expenses Trend</h2>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="month" />
-                  <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="income" fill="#10b981" name="Income" />
-                  <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
-                </BarChart>
-              </ResponsiveContainer>
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="income" fill="#10b981" name="Income" />
+                    <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  No trend data available
+                </div>
+              )}
             </div>
           </div>
 
@@ -499,94 +418,75 @@ const TreasurerDashboard = () => {
           <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Expense Categories</h2>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
+              {categoryData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  No category data available
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Lists Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pending Budgets */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <h2 className="text-lg font-semibold text-gray-900">Pending Budgets</h2>
-            </div>
-            <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-              {pendingBudgets.length > 0 ? (
-                pendingBudgets.map((budget) => (
-                  <div key={budget.id} className="p-4 hover:bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{budget.name || 'Budget'}</p>
-                        <p className="text-xs text-gray-500">{budget.department || budget.category || 'Uncategorized'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-gray-900">{formatCurrency(budget.amount || 0)}</p>
-                        <p className="text-xs text-gray-400">{budget.period || 'Monthly'}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-gray-500">
-                  <DocumentTextIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm">No pending budgets</p>
-                </div>
-              )}
-            </div>
+        {/* Pending Budgets Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h2 className="text-lg font-semibold text-gray-900">Pending Budgets</h2>
           </div>
-
-          {/* Recent Transactions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-            </div>
-            <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
-              {recentTransactions.length > 0 ? (
-                recentTransactions.map((txn) => (
-                  <div key={txn.id} className="p-4 hover:bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{txn.description || 'Transaction'}</p>
-                        <p className="text-xs text-gray-500">{txn.category || 'Uncategorized'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-red-600">-{formatCurrency(txn.amount || 0)}</p>
-                        <p className="text-xs text-gray-400">{formatDate(txn.date || txn.created_at)}</p>
-                      </div>
+          <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
+            {pendingBudgets.length > 0 ? (
+              pendingBudgets.map((budget) => (
+                <div key={budget.id} className="p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {budget.name || budget.budget_name || 'Budget'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {budget.department || budget.category || budget.account_category || 'Uncategorized'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatCurrency(budget.amount || 0)}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {budget.period || budget.fiscal_year || 'Annual'}
+                      </p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-gray-500">
-                  <BanknotesIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm">No recent transactions</p>
                 </div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <DocumentTextIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No pending budgets</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Account Balance Footer */}
-        <div className="mt-8 bg-gradient-to-r from-[rgb(31,178,86)] to-[rgb(25,142,69)] text-white rounded-lg p-6">
+        <div className="bg-gradient-to-r from-[rgb(31,178,86)] to-[rgb(25,142,69)] text-white rounded-lg p-6">
           <div className="flex justify-between items-center">
             <div>
               <span className="text-sm font-medium opacity-90">Total Account Balance</span>

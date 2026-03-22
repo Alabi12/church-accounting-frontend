@@ -2,6 +2,22 @@
 import api from './api';
 
 export const treasurerService = {
+  // ==================== DASHBOARD STATS ====================
+  
+  /**
+   * Get treasurer dashboard statistics
+   * @returns {Promise}
+   */
+  getDashboardStats: async () => {
+    try {
+      const response = await api.get('/treasurer/dashboard-stats');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching dashboard stats:', error);
+      throw error;
+    }
+  },
+
   // ==================== BUDGET MANAGEMENT ====================
   
   /**
@@ -18,6 +34,8 @@ export const treasurerService = {
       if (params.search) queryParams.append('search', params.search);
       if (params.page) queryParams.append('page', params.page);
       if (params.perPage) queryParams.append('per_page', params.perPage);
+      if (params.minAmount) queryParams.append('minAmount', params.minAmount);
+      if (params.maxAmount) queryParams.append('maxAmount', params.maxAmount);
       
       const url = `/treasurer/budgets${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       console.log('📡 Fetching budgets:', url);
@@ -26,7 +44,7 @@ export const treasurerService = {
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching budgets:', error);
-      throw error;
+      return { budgets: [], stats: {}, total: 0, pages: 0 };
     }
   },
 
@@ -111,18 +129,35 @@ export const treasurerService = {
     }
   },
 
-  // ==================== DASHBOARD STATS ====================
-  
   /**
-   * Get treasurer dashboard statistics
+   * Get budget comments
+   * @param {number} budgetId 
    * @returns {Promise}
    */
-  getDashboardStats: async () => {
+  getBudgetComments: async (budgetId) => {
     try {
-      const response = await api.get('/treasurer/dashboard-stats');
+      console.log(`📡 Fetching comments for budget ${budgetId}`);
+      const response = await api.get(`/treasurer/budgets/${budgetId}/comments`);
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching dashboard stats:', error);
+      console.error('❌ Error fetching budget comments:', error);
+      return { comments: [] };
+    }
+  },
+
+  /**
+   * Add budget comment
+   * @param {number} budgetId 
+   * @param {string} comment 
+   * @returns {Promise}
+   */
+  addBudgetComment: async (budgetId, comment) => {
+    try {
+      console.log(`💬 Adding comment to budget ${budgetId}`);
+      const response = await api.post(`/treasurer/budgets/${budgetId}/comments`, { comment });
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error adding comment:', error);
       throw error;
     }
   },
@@ -141,6 +176,7 @@ export const treasurerService = {
       if (params.category) queryParams.append('category', params.category);
       if (params.startDate) queryParams.append('startDate', params.startDate);
       if (params.endDate) queryParams.append('endDate', params.endDate);
+      if (params.search) queryParams.append('search', params.search);
       if (params.page) queryParams.append('page', params.page);
       if (params.perPage) queryParams.append('per_page', params.perPage);
       
@@ -149,7 +185,7 @@ export const treasurerService = {
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching expenses:', error);
-      throw error;
+      return { expenses: [], stats: {}, total: 0 };
     }
   },
 
@@ -168,8 +204,147 @@ export const treasurerService = {
     }
   },
 
-  // ==================== REPORTS ====================
+  /**
+   * Update an expense
+   * @param {number} expenseId 
+   * @param {Object} expenseData 
+   * @returns {Promise}
+   */
+  updateExpense: async (expenseId, expenseData) => {
+    try {
+      const response = await api.put(`/treasurer/expenses/${expenseId}`, expenseData);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error updating expense:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete an expense
+   * @param {number} expenseId 
+   * @returns {Promise}
+   */
+  deleteExpense: async (expenseId) => {
+    try {
+      const response = await api.delete(`/treasurer/expenses/${expenseId}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error deleting expense:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Approve an expense
+   * @param {number} expenseId 
+   * @returns {Promise}
+   */
+  approveExpense: async (expenseId) => {
+    try {
+      console.log(`✅ Approving expense ${expenseId}...`);
+      const response = await api.post(`/treasurer/expenses/${expenseId}/approve`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error approving expense:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Reject an expense
+   * @param {number} expenseId 
+   * @param {string} reason 
+   * @returns {Promise}
+   */
+  rejectExpense: async (expenseId, reason) => {
+    try {
+      console.log(`❌ Rejecting expense ${expenseId}...`);
+      const response = await api.post(`/treasurer/expenses/${expenseId}/reject`, { reason });
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error rejecting expense:', error);
+      throw error;
+    }
+  },
+
+  // ==================== REPORTS & ANALYTICS ====================
   
+  /**
+   * Get income/expense trends
+   * @param {number} months 
+   * @returns {Promise}
+   */
+  getTrends: async (months = 6) => {
+    try {
+      const response = await api.get(`/treasurer/income-expense-trends?months=${months}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching trends:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get category breakdown
+   * @param {string} period - 'month', 'quarter', 'year'
+   * @returns {Promise}
+   */
+  getCategoryBreakdown: async (period = 'month') => {
+    try {
+      const response = await api.get(`/treasurer/category-breakdown?period=${period}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching category breakdown:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get alerts
+   * @returns {Promise}
+   */
+  getAlerts: async () => {
+    try {
+      const response = await api.get('/treasurer/alerts');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching alerts:', error);
+      return { alerts: [] };
+    }
+  },
+
+  /**
+   * Get pending items (budgets and expenses awaiting approval)
+   * @returns {Promise}
+   */
+  getPendingItems: async () => {
+    try {
+      console.log('📡 Fetching pending items...');
+      const response = await api.get('/treasurer/pending-items');
+      console.log('✅ Pending items response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching pending items:', error);
+      return { items: [] };
+    }
+  },
+
+  /**
+   * Get recent transactions
+   * @param {number} limit 
+   * @returns {Promise}
+   */
+  getRecentTransactions: async (limit = 10) => {
+    try {
+      const response = await api.get(`/treasurer/recent-transactions?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching recent transactions:', error);
+      return { transactions: [] };
+    }
+  },
+
   /**
    * Get cash flow analysis
    * @param {Object} params 
@@ -181,6 +356,7 @@ export const treasurerService = {
       if (params.period) queryParams.append('period', params.period);
       if (params.startDate) queryParams.append('startDate', params.startDate);
       if (params.endDate) queryParams.append('endDate', params.endDate);
+      if (params.accountId) queryParams.append('accountId', params.accountId);
       
       const url = `/treasurer/cash-flow${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
       const response = await api.get(url);
@@ -213,58 +389,32 @@ export const treasurerService = {
   },
 
   /**
-   * Get income/expense trends
-   * @param {number} months 
+   * Get budget status report
    * @returns {Promise}
    */
-  getTrends: async (months = 6) => {
+  getBudgetStatus: async () => {
     try {
-      const response = await api.get(`/treasurer/income-expense-trends?months=${months}`);
+      const response = await api.get('/treasurer/budget-status');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching trends:', error);
-      throw error;
+      console.error('❌ Error fetching budget status:', error);
+      return [];
     }
   },
 
+  // ==================== DEBUG ====================
+  
   /**
-   * Get category breakdown
-   * @param {string} period 
+   * Debug endpoint to check model accessibility
    * @returns {Promise}
    */
-  getCategoryBreakdown: async (period = 'month') => {
+  debug: async () => {
     try {
-      const response = await api.get(`/treasurer/category-breakdown?period=${period}`);
+      const response = await api.get('/treasurer/debug');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching category breakdown:', error);
+      console.error('❌ Debug endpoint error:', error);
       throw error;
     }
-  },
-
-  /**
-   * Get alerts
-   * @returns {Promise}
-   */
-  getAlerts: async () => {
-    try {
-      const response = await api.get('/treasurer/alerts');
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error fetching alerts:', error);
-      return { alerts: [] };
-    }
-  },
-
-  approveExpense: async (expenseId) => {
-    try {
-      console.log(`✅ Approving expense ${expenseId}...`);
-      const response = await api.post(`/treasurer/expenses/${expenseId}/approve`, {});
-      console.log('✅ Approve response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error approving expense:', error);
-      throw error;
-    }
-  },
+  }
 };
