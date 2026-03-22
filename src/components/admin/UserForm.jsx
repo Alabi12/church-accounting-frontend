@@ -11,11 +11,13 @@ import {
   LockClosedIcon,
   ShieldCheckIcon,
   BuildingOfficeIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { adminService } from '../../services/admin';
 import toast from 'react-hot-toast';
 
-const schema = yup.object({
+// Add username uniqueness check to schema
+const getSchema = (isNew) => yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
   username: yup.string()
     .min(3, 'Username must be at least 3 characters')
@@ -24,8 +26,8 @@ const schema = yup.object({
     .required('Username is required'),
   firstName: yup.string().required('First name is required'),
   lastName: yup.string().required('Last name is required'),
-  password: yup.string().when('isNew', {
-    is: true,
+  password: yup.string().when([], {
+    is: () => isNew,
     then: (schema) => schema
       .min(8, 'Password must be at least 8 characters')
       .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -46,7 +48,13 @@ const UserForm = ({ user, onClose, onSuccess }) => {
   const [churches, setChurches] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [usernameAvailable, setUsernameAvailable] = useState(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState(null);
+  
   const isNew = !user;
+  
+  const schema = getSchema(isNew);
 
   const {
     register,
@@ -54,6 +62,8 @@ const UserForm = ({ user, onClose, onSuccess }) => {
     formState: { errors },
     setValue,
     watch,
+    setError,
+    clearErrors,
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -64,6 +74,41 @@ const UserForm = ({ user, onClose, onSuccess }) => {
       isVerified: user?.isVerified ?? false,
     },
   });
+
+  const username = watch('username');
+
+  // Check username availability with debounce
+  useEffect(() => {
+    if (!username || username.length < 3 || !isNew) return;
+    
+    // Don't check if it's the same as the original username
+    if (!isNew && username === user?.username) return;
+    
+    const timer = setTimeout(async () => {
+      setCheckingUsername(true);
+      setUsernameAvailable(null);
+      setUsernameError(null);
+      
+      try {
+        const response = await adminService.checkUsername(username);
+        if (response.available) {
+          setUsernameAvailable(true);
+          clearErrors('username');
+        } else {
+          setUsernameAvailable(false);
+          setUsernameError('Username is already taken');
+          setError('username', { message: 'Username is already taken' });
+        }
+      } catch (error) {
+        console.error('Error checking username:', error);
+        setUsernameAvailable(null);
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [username, isNew, user, setError, clearErrors]);
 
   useEffect(() => {
     fetchData();
@@ -85,7 +130,6 @@ const UserForm = ({ user, onClose, onSuccess }) => {
       const data = await adminService.getRoles();
       console.log('Roles fetched:', data);
       
-      // Handle different response structures
       if (Array.isArray(data)) {
         setRoles(data);
       } else if (data.roles && Array.isArray(data.roles)) {
@@ -107,7 +151,6 @@ const UserForm = ({ user, onClose, onSuccess }) => {
       const data = await adminService.getChurches();
       console.log('Churches fetched:', data);
       
-      // Handle different response structures
       if (Array.isArray(data)) {
         setChurches(data);
       } else if (data.churches && Array.isArray(data.churches)) {
@@ -125,6 +168,12 @@ const UserForm = ({ user, onClose, onSuccess }) => {
   };
 
   const onSubmit = async (data) => {
+    // Final validation for username availability
+    if (isNew && (!usernameAvailable && usernameAvailable !== null)) {
+      toast.error('Please choose a different username');
+      return;
+    }
+    
     try {
       setSubmitting(true);
       
@@ -140,7 +189,15 @@ const UserForm = ({ user, onClose, onSuccess }) => {
       onSuccess();
     } catch (error) {
       console.error('Error saving user:', error);
-      toast.error(error.response?.data?.error || 'Failed to save user');
+      
+      // Handle duplicate username error from backend
+      if (error.response?.data?.error?.includes('UNIQUE constraint failed: users.username')) {
+        setUsernameError('Username is already taken');
+        setError('username', { message: 'Username is already taken' });
+        toast.error('Username already exists. Please choose another.');
+      } else {
+        toast.error(error.response?.data?.error || 'Failed to save user');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -198,27 +255,51 @@ const UserForm = ({ user, onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Username */}
+          {/* Username with Availability Check */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               <UserIcon className="h-4 w-4 inline mr-1" />
               Username <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              {...register('username')}
-              className={`
-                w-full px-4 py-2 border-2 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-offset-2
-                ${errors.username
-                  ? 'border-red-300 focus:ring-red-500'
-                  : 'border-gray-200 focus:ring-[rgb(31,178,86)]'
-                }
-              `}
-              placeholder="johndoe"
-            />
-            {errors.username && (
+            <div className="relative">
+              <input
+                type="text"
+                {...register('username')}
+                className={`
+                  w-full px-4 py-2 border-2 rounded-lg
+                  focus:outline-none focus:ring-2 focus:ring-offset-2
+                  ${(usernameError || errors.username)
+                    ? 'border-red-300 focus:ring-red-500'
+                    : usernameAvailable === true
+                    ? 'border-green-300 focus:ring-green-500'
+                    : 'border-gray-200 focus:ring-[rgb(31,178,86)]'
+                  }
+                `}
+                placeholder="johndoe"
+                disabled={!isNew}
+              />
+              {checkingUsername && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <ArrowPathIcon className="h-5 w-5 text-gray-400 animate-spin" />
+                </div>
+              )}
+              {!checkingUsername && usernameAvailable === true && username && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                </div>
+              )}
+            </div>
+            {usernameError && (
+              <p className="mt-1 text-xs text-red-600">{usernameError}</p>
+            )}
+            {errors.username && !usernameError && (
               <p className="mt-1 text-xs text-red-600">{errors.username.message}</p>
+            )}
+            {!usernameError && !errors.username && usernameAvailable === true && username && (
+              <p className="mt-1 text-xs text-green-600">✓ Username is available</p>
+            )}
+            {!isNew && (
+              <p className="mt-1 text-xs text-gray-500">Username cannot be changed after creation</p>
             )}
           </div>
 
@@ -317,8 +398,8 @@ const UserForm = ({ user, onClose, onSuccess }) => {
             >
               <option value="">Select role</option>
               {roles.map(role => (
-                <option key={role.id} value={role.name}>
-                  {role.name.replace('_', ' ')}
+                <option key={role.id || role.name} value={role.name}>
+                  {role.name?.replace('_', ' ') || role}
                 </option>
               ))}
             </select>
@@ -380,7 +461,7 @@ const UserForm = ({ user, onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (isNew && (!usernameAvailable && username))}
               className="px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-md hover:bg-[rgb(25,142,69)] disabled:opacity-50 flex items-center"
             >
               {submitting ? (
