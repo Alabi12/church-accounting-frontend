@@ -10,8 +10,8 @@ export const payrollService = {
   deleteEmployee: (id) => api.delete(`/payroll/employees/${id}`),
 
   // Payroll processing
-  calculatePayroll: (data) => api.post('/payroll/payroll/calculate', data),
-  processPayroll: (data) => api.post('/payroll/payroll/process', data),
+  calculatePayroll: (data) => api.post('/payroll/calculate', data),
+  processPayroll: (data) => api.post('/payroll/process', data),
   getPayrollRuns: (params) => api.get('/payroll/payroll/runs', { params }),
   getPayrollRun: (id) => api.get(`/payroll/payroll/${id}`),
   approvePayroll: (id) => api.post(`/payroll/payroll/${id}/approve`),
