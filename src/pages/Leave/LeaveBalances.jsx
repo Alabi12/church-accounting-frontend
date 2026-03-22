@@ -25,7 +25,7 @@ function LeaveBalances() {
     yearOptions.push(i);
   }
 
-  // Fetch leave balances
+  // Fetch leave balances - FIXED: data.balances not data.data.balances
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['leaveBalances', yearFilter],
     queryFn: () => leaveService.getLeaveBalances({ year: yearFilter }),
@@ -40,7 +40,8 @@ function LeaveBalances() {
       setInitDialog({ isOpen: false });
     },
     onError: (error) => {
-      toast.error('Failed to initialize leave balances');
+      console.error('Init error:', error);
+      toast.error(error.response?.data?.error || 'Failed to initialize leave balances');
     },
   });
 
@@ -63,11 +64,31 @@ function LeaveBalances() {
     }
   };
 
+  const getLeaveTypeLabel = (type) => {
+    switch (type) {
+      case 'annual':
+        return 'Annual Leave';
+      case 'sick':
+        return 'Sick Leave';
+      case 'bereavement':
+        return 'Bereavement';
+      case 'maternity':
+        return 'Maternity';
+      case 'paternity':
+        return 'Paternity';
+      case 'study':
+        return 'Study Leave';
+      default:
+        return type;
+    }
+  };
+
   if (isLoading) return <LoadingSpinner fullScreen />;
   if (error) return <ErrorAlert message="Failed to load leave balances" />;
 
-  const balances = data?.data?.balances || [];
-  
+  // FIXED: Access balances directly from data, not data.data
+  const balances = data?.balances || [];
+
   // Group balances by employee
   const balancesByEmployee = balances.reduce((acc, balance) => {
     if (!acc[balance.employee_id]) {
@@ -146,6 +167,32 @@ function LeaveBalances() {
         )}
       </div>
 
+      {/* Summary Cards */}
+      {balances.length > 0 && (
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <p className="text-sm text-gray-500">Total Employees</p>
+            <p className="text-2xl font-bold text-gray-900">{Object.keys(balancesByEmployee).length}</p>
+          </div>
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <p className="text-sm text-gray-500">Total Leave Types</p>
+            <p className="text-2xl font-bold text-gray-900">{balances.length}</p>
+          </div>
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <p className="text-sm text-gray-500">Total Days Used</p>
+            <p className="text-2xl font-bold text-red-600">
+              {balances.reduce((sum, b) => sum + (b.used || 0), 0)}
+            </p>
+          </div>
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <p className="text-sm text-gray-500">Total Days Remaining</p>
+            <p className="text-2xl font-bold text-green-600">
+              {balances.reduce((sum, b) => sum + (b.remaining || 0), 0)}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Balances Table */}
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
@@ -172,50 +219,55 @@ function LeaveBalances() {
                     <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
                       Utilization
                     </th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {Object.values(balancesByEmployee).map((employee) => (
                     <React.Fragment key={employee.employee_id}>
-                      {employee.balances.map((balance, index) => (
-                        <tr key={balance.id} className="hover:bg-gray-50">
-                          {index === 0 && (
-                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6" rowSpan={employee.balances.length}>
-                              <div className="font-medium text-gray-900">{employee.employee_name}</div>
-                              <div className="text-gray-500">ID: {employee.employee_id}</div>
-                            </td>
-                          )}
-                          <td className="whitespace-nowrap px-3 py-4 text-sm">
-                            <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getLeaveTypeColor(balance.leave_type)}`}>
-                              {balance.leave_type}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-center font-medium">
-                            {balance.annual_entitlement} days
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-center text-red-600">
-                            {balance.used} days
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-center font-bold text-[rgb(31,178,86)]">
-                            {balance.remaining} days
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
-                            <div className="flex items-center justify-center">
-                              <span className="mr-2 text-xs text-gray-600">
-                                {Math.round((balance.used / balance.annual_entitlement) * 100)}%
+                      {employee.balances.map((balance, index) => {
+                        const utilizationPercent = (balance.used / balance.annual_entitlement) * 100;
+                        return (
+                          <tr key={balance.id} className="hover:bg-gray-50">
+                            {index === 0 && (
+                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6" rowSpan={employee.balances.length}>
+                                <div className="font-medium text-gray-900">{employee.employee_name}</div>
+                                <div className="text-gray-500 text-xs">ID: {employee.employee_id}</div>
+                              </td>
+                            )}
+                            <td className="whitespace-nowrap px-3 py-4 text-sm">
+                              <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold leading-5 ${getLeaveTypeColor(balance.leave_type)}`}>
+                                {getLeaveTypeLabel(balance.leave_type)}
                               </span>
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-[rgb(31,178,86)] h-2 rounded-full"
-                                  style={{
-                                    width: `${(balance.used / balance.annual_entitlement) * 100}%`
-                                  }}
-                                />
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-center font-medium">
+                              {balance.annual_entitlement} days
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-center text-red-600 font-medium">
+                              {balance.used} days
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-center font-bold text-[rgb(31,178,86)]">
+                              {balance.remaining} days
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-xs text-gray-600 min-w-[40px]">
+                                  {Math.round(utilizationPercent)}%
+                                </span>
+                                <div className="w-20 bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className={`h-2 rounded-full ${
+                                      utilizationPercent > 90 ? 'bg-red-500' : 
+                                      utilizationPercent > 70 ? 'bg-orange-500' : 
+                                      'bg-[rgb(31,178,86)]'
+                                    }`}
+                                    style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </React.Fragment>
                   ))}
                   {Object.keys(balancesByEmployee).length === 0 && (

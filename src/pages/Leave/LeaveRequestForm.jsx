@@ -42,8 +42,8 @@ function LeaveRequestForm() {
   });
 
   useEffect(() => {
-    if (balanceData?.data?.balances?.[0]) {
-      setLeaveBalance(balanceData.data.balances[0]);
+    if (balanceData?.balances?.[0]) {
+      setLeaveBalance(balanceData.balances[0]);
     } else {
       setLeaveBalance(null);
     }
@@ -69,7 +69,9 @@ function LeaveRequestForm() {
       navigate('/leave/requests');
     },
     onError: (error) => {
-      toast.error('Failed to submit leave request');
+      console.error('Error creating leave request:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to submit leave request';
+      toast.error(errorMessage);
     },
   });
 
@@ -109,10 +111,17 @@ function LeaveRequestForm() {
       return;
     }
 
-    createMutation.mutate({
-      ...formData,
-      days_requested: daysRequested,
-    });
+    // Format dates correctly for the API - ADD TIME COMPONENT
+    const submitData = {
+      employee_id: parseInt(formData.employee_id),
+      leave_type: formData.leave_type,
+      start_date: `${formData.start_date}T00:00:00Z`,
+      end_date: `${formData.end_date}T00:00:00Z`,
+      reason: formData.reason || ''
+    };
+
+    console.log('Submitting leave request:', submitData);
+    createMutation.mutate(submitData);
   };
 
   if (employeesLoading) return <LoadingSpinner fullScreen />;
