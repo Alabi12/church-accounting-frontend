@@ -41,7 +41,8 @@ function LeaveRequests() {
       setApproveDialog({ isOpen: false, id: null, name: '' });
     },
     onError: (error) => {
-      toast.error('Failed to approve leave request');
+      console.error('Approve error:', error);
+      toast.error(error.response?.data?.error || 'Failed to approve leave request');
     },
   });
 
@@ -54,7 +55,8 @@ function LeaveRequests() {
       setRejectDialog({ isOpen: false, id: null, name: '', reason: '' });
     },
     onError: (error) => {
-      toast.error('Failed to reject leave request');
+      console.error('Reject error:', error);
+      toast.error(error.response?.data?.error || 'Failed to reject leave request');
     },
   });
 
@@ -130,13 +132,18 @@ function LeaveRequests() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'dd MMM yyyy');
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy');
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   if (isLoading) return <LoadingSpinner fullScreen />;
   if (error) return <ErrorAlert message="Failed to load leave requests" />;
 
-  const requests = data?.data?.requests || [];
+  // FIXED: Access requests directly from data, not data.data
+  const requests = data?.requests || [];
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -243,7 +250,7 @@ function LeaveRequests() {
                     <tr key={request.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                         <div className="font-medium text-gray-900">{request.employee_name}</div>
-                        <div className="text-gray-500">{request.employee?.department || 'N/A'}</div>
+                        <div className="text-gray-500">{request.department || 'N/A'}</div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getLeaveTypeColor(request.leave_type)}`}>

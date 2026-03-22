@@ -4,14 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  CalendarIcon,
   FunnelIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { leaveService } from '../../services/leaveService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorAlert from '../../components/common/ErrorAlert';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isSameDay } from 'date-fns';
 
 function LeaveCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -19,7 +18,7 @@ function LeaveCalendar() {
   const [showFilters, setShowFilters] = useState(false);
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('all');
 
-  // Fetch leave calendar data
+  // Fetch leave calendar data - FIXED: data is the events array directly
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['leaveCalendar', currentDate.getFullYear(), currentDate.getMonth() + 1],
     queryFn: () => leaveService.getLeaveCalendar({
@@ -47,6 +46,25 @@ function LeaveCalendar() {
     }
   };
 
+  const getLeaveTypeBgLight = (type) => {
+    switch (type) {
+      case 'annual':
+        return 'bg-blue-100 text-blue-800';
+      case 'sick':
+        return 'bg-red-100 text-red-800';
+      case 'bereavement':
+        return 'bg-gray-100 text-gray-800';
+      case 'maternity':
+        return 'bg-purple-100 text-purple-800';
+      case 'paternity':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'study':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   const getLeaveTypeLabel = (type) => {
     switch (type) {
       case 'annual':
@@ -66,7 +84,8 @@ function LeaveCalendar() {
     }
   };
 
-  const events = data?.data || [];
+  // FIXED: data is the events array directly, not data.data
+  const events = data || [];
 
   // Filter events by leave type
   const filteredEvents = leaveTypeFilter === 'all' 
@@ -88,10 +107,12 @@ function LeaveCalendar() {
 
   const nextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    setSelectedDate(null);
   };
 
   const prevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    setSelectedDate(null);
   };
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -156,7 +177,7 @@ function LeaveCalendar() {
       )}
 
       {/* Legend */}
-      <div className="mb-6 flex flex-wrap gap-4">
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
         <span className="text-sm font-medium text-gray-700">Leave Types:</span>
         <div className="flex flex-wrap gap-3">
           <div className="flex items-center">
@@ -237,7 +258,7 @@ function LeaveCalendar() {
                 <div
                   key={day.toISOString()}
                   onClick={() => setSelectedDate(day)}
-                  className={`bg-white h-32 p-2 border-b border-r border-gray-200 cursor-pointer hover:bg-gray-50 ${
+                  className={`bg-white h-32 p-2 border-b border-r border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors ${
                     isToday(day) ? 'bg-blue-50' : ''
                   } ${isSelected ? 'ring-2 ring-[rgb(31,178,86)] ring-inset' : ''}`}
                 >
@@ -258,7 +279,7 @@ function LeaveCalendar() {
                       <div
                         key={idx}
                         className={`text-xs p-1 rounded text-white truncate ${getLeaveTypeColor(event.extendedProps?.leave_type)}`}
-                        title={`${event.title}`}
+                        title={event.title}
                       >
                         {event.extendedProps?.employee_name?.split(' ')[0] || 'Leave'}
                       </div>
@@ -289,35 +310,35 @@ function LeaveCalendar() {
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">
+                    <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">
                       Employee
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                       Leave Type
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                       Period
                     </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
                       Days
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {getEventsForDay(selectedDate).map((event, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
                         {event.extendedProps?.employee_name}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getLeaveTypeColor(event.extendedProps?.leave_type).replace('bg-', 'bg-').replace('500', '100 text-').replace('bg-', '')}800`}>
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getLeaveTypeBgLight(event.extendedProps?.leave_type)}`}>
                           {getLeaveTypeLabel(event.extendedProps?.leave_type)}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {format(new Date(event.start), 'dd MMM')} - {format(new Date(event.end), 'dd MMM yyyy')}
+                      <td className="px-3 py-4 text-sm text-gray-500">
+                        {format(new Date(event.start), 'dd MMM yyyy')} - {format(new Date(event.end), 'dd MMM yyyy')}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right font-medium">
                         {event.extendedProps?.days} days
                       </td>
                     </tr>
