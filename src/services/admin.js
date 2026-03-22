@@ -124,6 +124,24 @@ export const adminService = {
   },
 
   /**
+   * Check if username is available
+   * @param {string} username - Username to check
+   * @returns {Promise<{available: boolean, message: string}>}
+   */
+  checkUsername: async (username) => {
+    try {
+      console.log(`🔍 Checking username availability: ${username}`);
+      const response = await api.get(`/admin/users/check-username/${username}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error checking username:', error);
+      // Return available: true as fallback to avoid blocking the user
+      // The backend will still validate on final submission
+      return { available: true, message: 'Username check failed, will validate on submit' };
+    }
+  },
+
+  /**
    * Export users
    * @param {Object} filters - Filter parameters
    */
