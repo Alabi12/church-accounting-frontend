@@ -12,13 +12,14 @@ import {
   BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
+import { STANDARD_CHART_OF_ACCOUNTS, getNextAccountCode, getAccountTypeColor, getAccountTypeName } from '../../constants/chartOfAccounts';
 import toast from 'react-hot-toast';
 
 const ChartOfAccountsForm = () => {
-  const { id } = useParams(); // Get ID from URL for edit mode
+  const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(!!id); // Only load if editing
+  const [initialLoading, setInitialLoading] = useState(!!id);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -40,11 +41,11 @@ const ChartOfAccountsForm = () => {
   const [parentAccounts, setParentAccounts] = useState([]);
 
   const accountTypes = [
-    { id: 'ASSET', name: 'Asset', icon: BanknotesIcon, color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
-    { id: 'LIABILITY', name: 'Liability', icon: BriefcaseIcon, color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
-    { id: 'EQUITY', name: 'Equity', icon: ScaleIcon, color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
-    { id: 'REVENUE', name: 'Revenue', icon: CurrencyDollarIcon, color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200' },
-    { id: 'EXPENSE', name: 'Expense', icon: CurrencyDollarIcon, color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200' },
+    { id: 'ASSET', name: 'Asset', icon: BanknotesIcon, color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', standardCount: STANDARD_CHART_OF_ACCOUNTS.ASSET.length },
+    { id: 'LIABILITY', name: 'Liability', icon: BriefcaseIcon, color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', standardCount: STANDARD_CHART_OF_ACCOUNTS.LIABILITY.length },
+    { id: 'EQUITY', name: 'Equity', icon: ScaleIcon, color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', standardCount: STANDARD_CHART_OF_ACCOUNTS.EQUITY.length },
+    { id: 'REVENUE', name: 'Revenue', icon: CurrencyDollarIcon, color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200', standardCount: STANDARD_CHART_OF_ACCOUNTS.REVENUE.length },
+    { id: 'EXPENSE', name: 'Expense', icon: CurrencyDollarIcon, color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200', standardCount: STANDARD_CHART_OF_ACCOUNTS.EXPENSE.length },
   ];
 
   const normalBalanceOptions = [
@@ -58,19 +59,61 @@ const ChartOfAccountsForm = () => {
       loadAccountData();
     }
     fetchParentAccounts();
+    
+    // Auto-generate account code for new accounts
+    if (!id && !formData.code) {
+      generateAccountCode(formData.type);
+    }
   }, [id]);
+
+  // Generate account code when type changes for new accounts
+  useEffect(() => {
+    if (!id && formData.type) {
+      generateAccountCode(formData.type);
+    }
+  }, [formData.type, id]);
+
+  const generateAccountCode = (type) => {
+    // Get existing accounts of this type
+    const existingCodes = STANDARD_CHART_OF_ACCOUNTS[type]?.map(acc => acc.code) || [];
+    
+    // Find the next available code
+    let baseCode = '';
+    switch(type) {
+      case 'ASSET': baseCode = '1'; break;
+      case 'LIABILITY': baseCode = '2'; break;
+      case 'EQUITY': baseCode = '3'; break;
+      case 'REVENUE': baseCode = '4'; break;
+      case 'EXPENSE': baseCode = '5'; break;
+      default: baseCode = '9';
+    }
+    
+    // Find max code number in this type
+    let maxNumber = 0;
+    existingCodes.forEach(code => {
+      if (code.startsWith(baseCode)) {
+        const num = parseInt(code);
+        if (!isNaN(num) && num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    });
+    
+    // If no existing codes, start from baseCode + 10
+    if (maxNumber === 0) {
+      maxNumber = parseInt(baseCode + '10');
+    }
+    
+    const nextCode = (maxNumber + 1).toString();
+    setFormData(prev => ({ ...prev, code: nextCode }));
+  };
 
   const loadAccountData = async () => {
     try {
       setInitialLoading(true);
-      console.log(`📝 Loading account data for ID: ${id}`);
       const response = await accountantService.getAccount(id);
-      console.log('📥 Account data received:', response);
-      
-      // Extract account data from response
       const accountData = response.account || response;
       
-      // Map the data to form fields
       setFormData({
         code: accountData.account_code || accountData.code || '',
         name: accountData.name || '',
@@ -87,10 +130,8 @@ const ChartOfAccountsForm = () => {
         level: accountData.level || 1,
         parentAccountId: accountData.parent_account_id || null
       });
-      
-      console.log('✅ Form populated with account data');
     } catch (error) {
-      console.error('❌ Error loading account:', error);
+      console.error('Error loading account:', error);
       toast.error('Failed to load account data');
       navigate('/accountant/chart-of-accounts');
     } finally {
@@ -102,7 +143,6 @@ const ChartOfAccountsForm = () => {
     try {
       const response = await accountantService.getAccounts();
       const accountsList = response.accounts || response.data?.accounts || response || [];
-      // Filter to only show parent-level accounts (level 1) and exclude current account if editing
       const parents = accountsList.filter(acc => 
         (acc.level === 1 || !acc.parent_account_id) && 
         (!id || acc.id !== parseInt(id))
@@ -166,18 +206,14 @@ const ChartOfAccountsForm = () => {
         parentAccountId: formData.parentAccountId || null
       };
 
-      let response;
       if (id) {
-        // Update existing account
-        response = await accountantService.updateAccount(id, payload);
+        await accountantService.updateAccount(id, payload);
         toast.success('Account updated successfully');
       } else {
-        // Create new account
-        response = await accountantService.createAccount(payload);
+        await accountantService.createAccount(payload);
         toast.success('Account created successfully');
       }
       
-      // Navigate back to chart of accounts
       navigate('/accountant/chart-of-accounts');
       
     } catch (error) {
@@ -204,7 +240,10 @@ const ChartOfAccountsForm = () => {
     return type ? `${type.bgColor} ${type.color} ${type.borderColor}` : 'bg-gray-50 text-gray-600 border-gray-200';
   };
 
-  // Show loading spinner while fetching account data
+  const getStandardAccountsForType = (type) => {
+    return STANDARD_CHART_OF_ACCOUNTS[type] || [];
+  };
+
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
@@ -238,7 +277,6 @@ const ChartOfAccountsForm = () => {
             <button
               onClick={handleClose}
               className="text-gray-400 hover:text-gray-500"
-              aria-label="Close"
             >
               <XCircleIcon className="h-6 w-6" />
             </button>
@@ -246,16 +284,16 @@ const ChartOfAccountsForm = () => {
 
           {/* Selected Type Indicator */}
           <div className={`mb-6 p-3 rounded-lg border ${getTypeColorClass(formData.type)}`}>
-            <div className="flex items-center">
-              {getTypeIcon(formData.type)}
-              <span className="ml-2 font-medium">
-                Account Type: {accountTypes.find(t => t.id === formData.type)?.name}
-              </span>
-              {id && (
-                <span className="ml-4 text-sm text-gray-500">
-                  Editing Account ID: {id}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {getTypeIcon(formData.type)}
+                <span className="ml-2 font-medium">
+                  Account Type: {accountTypes.find(t => t.id === formData.type)?.name}
                 </span>
-              )}
+              </div>
+              <span className="text-xs">
+                {getStandardAccountsForType(formData.type).length} standard accounts of this type
+              </span>
             </div>
           </div>
 
@@ -271,10 +309,14 @@ const ChartOfAccountsForm = () => {
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                   className={`w-full px-3 py-2 border rounded-md ${errors.code ? 'border-red-500' : 'border-gray-300'}`}
                   placeholder="e.g., 4010 or 4010-01"
-                  disabled={!!id} // Disable code editing for existing accounts
+                  disabled={!!id}
                 />
                 {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code}</p>}
-                {!id && <p className="text-xs text-gray-400 mt-1">Account code cannot be changed after creation</p>}
+                {!id && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Auto-generated based on account type. You can modify it.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -285,19 +327,18 @@ const ChartOfAccountsForm = () => {
                   value={formData.type}
                   onChange={(e) => {
                     const newType = e.target.value;
-                    // Auto-set normal balance based on account type
                     const normalBalance = (newType === 'ASSET' || newType === 'EXPENSE') ? 'debit' : 'credit';
                     setFormData({ ...formData, type: newType, normalBalance });
+                    if (!id) generateAccountCode(newType);
                   }}
                   className={`w-full px-3 py-2 border rounded-md ${errors.type ? 'border-red-500' : 'border-gray-300'}`}
-                  disabled={!!id} // Disable type editing for existing accounts
+                  disabled={!!id}
                 >
                   {accountTypes.map(type => (
                     <option key={type.id} value={type.id}>{type.name}</option>
                   ))}
                 </select>
                 {errors.type && <p className="text-xs text-red-500 mt-1">{errors.type}</p>}
-                {id && <p className="text-xs text-gray-400 mt-1">Account type cannot be changed</p>}
               </div>
             </div>
 
@@ -367,13 +408,12 @@ const ChartOfAccountsForm = () => {
                   value={formData.level}
                   onChange={(e) => setFormData({ ...formData, level: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  disabled={!!id} // Disable level editing for existing accounts
+                  disabled={!!id}
                 >
                   <option value={1}>Level 1 - Main Account</option>
                   <option value={2}>Level 2 - Sub Account</option>
                   <option value={3}>Level 3 - Detailed Account</option>
                 </select>
-                {id && <p className="text-xs text-gray-400 mt-1">Account level cannot be changed</p>}
               </div>
 
               <div>
@@ -402,7 +442,7 @@ const ChartOfAccountsForm = () => {
                   value={formData.normalBalance}
                   onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  disabled={!!id} // Disable normal balance editing for existing accounts
+                  disabled={!!id}
                 >
                   {normalBalanceOptions.map(option => (
                     <option key={option.id} value={option.id}>{option.name}</option>
@@ -413,7 +453,6 @@ const ChartOfAccountsForm = () => {
                     ? 'Account increases with debit entries' 
                     : 'Account increases with credit entries'}
                 </p>
-                {id && <p className="text-xs text-gray-400">Normal balance cannot be changed</p>}
               </div>
 
               <div>
@@ -425,9 +464,8 @@ const ChartOfAccountsForm = () => {
                   onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   placeholder="0.00"
-                  disabled={!!id} // Disable opening balance editing for existing accounts
+                  disabled={!!id}
                 />
-                {id && <p className="text-xs text-gray-400 mt-1">Opening balance cannot be changed after creation</p>}
               </div>
             </div>
 
@@ -438,7 +476,7 @@ const ChartOfAccountsForm = () => {
                   checked={formData.isContra}
                   onChange={(e) => setFormData({ ...formData, isContra: e.target.checked })}
                   className="h-4 w-4 text-green-600 rounded"
-                  disabled={!!id} // Disable contra flag editing for existing accounts
+                  disabled={!!id}
                 />
                 <span className="ml-2 text-sm">Is Contra Account</span>
               </label>
@@ -479,14 +517,26 @@ const ChartOfAccountsForm = () => {
             </div>
           </form>
 
-          {/* Help Section */}
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="text-xs font-medium text-blue-800 mb-1">Account Level Guidelines:</h4>
-            <ul className="text-xs text-blue-700 space-y-0.5">
-              <li>• Level 1: Main account groups (e.g., Cash, Accounts Payable)</li>
-              <li>• Level 2: Sub-accounts under main groups (e.g., Cash - Operating, Cash - Savings)</li>
-              <li>• Level 3: Detailed breakdowns if needed</li>
-            </ul>
+          {/* Standard Account Reference */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="text-sm font-semibold text-blue-800 mb-2">Standard Account Reference</h4>
+            <p className="text-xs text-blue-700 mb-2">
+              Based on the church accounting document. Here are the standard accounts in this category:
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              {getStandardAccountsForType(formData.type).slice(0, 6).map(acc => (
+                <div key={acc.code} className="flex items-center gap-1 text-blue-600">
+                  <span className="font-mono">{acc.code}</span>
+                  <span>-</span>
+                  <span className="truncate">{acc.name}</span>
+                </div>
+              ))}
+              {getStandardAccountsForType(formData.type).length > 6 && (
+                <div className="text-blue-500 italic">
+                  +{getStandardAccountsForType(formData.type).length - 6} more...
+                </div>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
