@@ -579,6 +579,73 @@ const FinancialStatements = () => {
   );
 };
 
+// Add to FinancialStatements.jsx - Budget Comparison Section
+
+const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
+  if (!budgetComparison) return null;
+
+  return (
+    <div className="mb-8">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Budget vs Actual Comparison</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <p className="text-sm text-gray-500">Revenue</p>
+          <div className="mt-2 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span>Budget:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.revenue.budget)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Actual:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.revenue.actual)}</span>
+            </div>
+            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.revenue.favorable ? 'text-green-600' : 'text-red-600'}`}>
+              <span>Variance:</span>
+              <span>{budgetComparison.revenue.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.revenue.variance)} ({budgetComparison.revenue.variance_percentage}%)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <p className="text-sm text-gray-500">Expenses</p>
+          <div className="mt-2 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span>Budget:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.expenses.budget)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Actual:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.expenses.actual)}</span>
+            </div>
+            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.expenses.favorable ? 'text-green-600' : 'text-red-600'}`}>
+              <span>Variance:</span>
+              <span>{budgetComparison.expenses.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.expenses.variance)} ({budgetComparison.expenses.variance_percentage}%)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <p className="text-sm text-gray-500">Net Surplus/(Deficit)</p>
+          <div className="mt-2 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span>Budget:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.net.budget)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Actual:</span>
+              <span className="font-medium">{formatCurrency(budgetComparison.net.actual)}</span>
+            </div>
+            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.net.favorable ? 'text-green-600' : 'text-red-600'}`}>
+              <span>Variance:</span>
+              <span>{budgetComparison.net.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.net.variance)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
   const renderCashFlow = () => {
     if (!statementData) return null;
     
