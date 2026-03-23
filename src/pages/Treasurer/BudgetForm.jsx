@@ -8,7 +8,8 @@ import {
   CalendarIcon,
   BuildingOfficeIcon,
   DocumentTextIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { treasurerService } from '../../services/treasurer';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -44,6 +45,9 @@ const BudgetForm = () => {
       setLoading(true);
       const data = await treasurerService.getBudget(id);
       
+      console.log('📦 Budget data received:', data);
+      
+      // Handle the actual field names from your backend
       setFormData({
         name: data.name || '',
         description: data.description || '',
@@ -69,29 +73,57 @@ const BudgetForm = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validation
+  const handleNumberChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value === '' ? '' : parseFloat(value) }));
+  };
+
+  const validateForm = () => {
     if (!formData.name.trim()) {
       toast.error('Budget name is required');
-      return;
+      return false;
     }
     if (!formData.department) {
       toast.error('Department is required');
-      return;
+      return false;
     }
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast.error('Valid amount is required');
-      return;
+      return false;
     }
+    if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+      toast.error('Start date cannot be after end date');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
 
     setSubmitting(true);
     try {
       const budgetData = {
-        ...formData,
-        amount: parseFloat(formData.amount)
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        department: formData.department,
+        fiscalYear: parseInt(formData.fiscalYear),  // Note: camelCase for backend
+        amount: parseFloat(formData.amount),
+        priority: formData.priority,
+        justification: formData.justification.trim()
       };
+      
+      // Add optional dates if provided (use camelCase as your backend expects)
+      if (formData.startDate) {
+        budgetData.startDate = formData.startDate;
+      }
+      if (formData.endDate) {
+        budgetData.endDate = formData.endDate;
+      }
+
+      console.log('📤 Submitting budget data:', budgetData);
 
       if (isEditMode) {
         await treasurerService.updateBudget(id, budgetData);
@@ -104,31 +136,66 @@ const BudgetForm = () => {
       navigate('/treasurer/budgets');
     } catch (error) {
       console.error('Error saving budget:', error);
-      toast.error(error.response?.data?.error || 'Failed to save budget');
+      
+      if (error.response?.data?.error) {
+        toast.error(error.response.data.error);
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Failed to save budget. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
   };
+
+  const fiscalYears = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = currentYear - 2; i <= currentYear + 2; i++) {
+      years.push(i);
+    }
+    return years;
+  };
+
+  const departments = [
+    { value: 'Youth Ministry', label: 'Youth Ministry' },
+    { value: "Children's Ministry", label: "Children's Ministry" },
+    { value: 'Worship Ministry', label: 'Worship Ministry' },
+    { value: 'Missions', label: 'Missions' },
+    { value: 'Education', label: 'Education' },
+    { value: 'Facilities', label: 'Facilities' },
+    { value: 'Administration', label: 'Administration' },
+    { value: 'Outreach', label: 'Outreach' },
+    { value: 'Finance', label: 'Finance' },
+    { value: 'Human Resources', label: 'Human Resources' },
+    { value: 'Operations', label: 'Operations' }
+  ];
 
   if (loading) {
     return <LoadingSpinner fullScreen />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6">
           <button
             onClick={() => navigate('/treasurer/budgets')}
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 group transition-colors"
           >
-            <ArrowLeftIcon className="h-5 w-5 mr-2" />
+            <ArrowLeftIcon className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Budgets
           </button>
           <h1 className="text-2xl font-bold text-gray-900">
             {isEditMode ? 'Edit Budget' : 'Create New Budget'}
           </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {isEditMode 
+              ? 'Update budget details and resubmit for approval' 
+              : 'Define a new budget for a department or ministry'}
+          </p>
         </div>
 
         {/* Form */}
@@ -136,7 +203,7 @@ const BudgetForm = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+          className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
         >
           <div className="p-6 space-y-6">
             {/* Basic Information */}
@@ -153,7 +220,7 @@ const BudgetForm = () => {
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent transition-all"
                     placeholder="e.g., Youth Ministry 2026"
                   />
                 </div>
@@ -167,8 +234,8 @@ const BudgetForm = () => {
                     value={formData.description}
                     onChange={handleChange}
                     rows="3"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
-                    placeholder="Brief description of the budget purpose"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent transition-all"
+                    placeholder="Brief description of the budget purpose and expected outcomes"
                   />
                 </div>
 
@@ -177,38 +244,36 @@ const BudgetForm = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Department <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
-                    >
-                      <option value="">Select Department</option>
-                      <option value="Youth Ministry">Youth Ministry</option>
-                      <option value="Children's Ministry">Children's Ministry</option>
-                      <option value="Worship Ministry">Worship Ministry</option>
-                      <option value="Missions">Missions</option>
-                      <option value="Education">Education</option>
-                      <option value="Facilities">Facilities</option>
-                      <option value="Administration">Administration</option>
-                      <option value="Outreach">Outreach</option>
-                    </select>
+                    <div className="relative">
+                      <BuildingOfficeIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <select
+                        name="department"
+                        value={formData.department}
+                        onChange={handleChange}
+                        required
+                        className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent appearance-none"
+                      >
+                        <option value="">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.value} value={dept.value}>{dept.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Priority
+                      Priority Level
                     </label>
                     <select
                       name="priority"
                       value={formData.priority}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                     >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
+                      <option value="LOW">Low Priority</option>
+                      <option value="MEDIUM">Medium Priority</option>
+                      <option value="HIGH">High Priority</option>
                     </select>
                   </div>
                 </div>
@@ -223,15 +288,16 @@ const BudgetForm = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Fiscal Year
                   </label>
-                  <input
-                    type="number"
+                  <select
                     name="fiscalYear"
                     value={formData.fiscalYear}
                     onChange={handleChange}
-                    min="2020"
-                    max="2030"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
-                  />
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
+                  >
+                    {fiscalYears().map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -239,16 +305,16 @@ const BudgetForm = () => {
                     Amount (GHS) <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <CurrencyDollarIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    <CurrencyDollarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="number"
                       name="amount"
                       value={formData.amount}
-                      onChange={handleChange}
+                      onChange={handleNumberChange}
                       required
                       min="0"
                       step="0.01"
-                      className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                      className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                       placeholder="0.00"
                     />
                   </div>
@@ -259,13 +325,13 @@ const BudgetForm = () => {
                     Start Date
                   </label>
                   <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="date"
                       name="startDate"
                       value={formData.startDate}
                       onChange={handleChange}
-                      className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                      className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -275,13 +341,13 @@ const BudgetForm = () => {
                     End Date
                   </label>
                   <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                    <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="date"
                       name="endDate"
                       value={formData.endDate}
                       onChange={handleChange}
-                      className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                      className="pl-10 pr-4 py-2.5 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -300,48 +366,56 @@ const BudgetForm = () => {
                   value={formData.justification}
                   onChange={handleChange}
                   rows="4"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
-                  placeholder="Explain why this budget is needed and how it will be used..."
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent transition-all"
+                  placeholder="Explain why this budget is needed, how it aligns with church goals, and the expected impact..."
                 />
               </div>
             </div>
 
             {/* Help Text */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex">
-                <InformationCircleIcon className="h-5 w-5 text-blue-400 mr-2" />
-                <p className="text-sm text-blue-700">
-                  Budgets start as DRAFT. You can submit them for approval when ready.
-                  Once submitted, the pastor will review and approve/reject the budget.
-                </p>
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-start">
+                <InformationCircleIcon className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-blue-700">
+                  <p className="font-medium mb-1">Budget Workflow:</p>
+                  <ul className="space-y-1">
+                    <li>• Budgets start as <span className="font-semibold">DRAFT</span> - you can edit freely</li>
+                    <li>• When ready, <span className="font-semibold">submit for approval</span> to the pastor</li>
+                    <li>• Pastor will review and <span className="font-semibold">approve or reject</span> the budget</li>
+                    <li>• Approved budgets become active for the fiscal year</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Form Actions */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
             <button
               type="button"
               onClick={() => navigate('/treasurer/budgets')}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="px-5 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-lg text-sm font-medium hover:bg-[rgb(27,158,76)] disabled:opacity-50 flex items-center"
+              className="px-5 py-2 bg-[rgb(31,178,86)] text-white rounded-xl text-sm font-medium hover:bg-[rgb(27,158,76)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {submitting ? (
                 <>
-                  <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
                   Saving...
                 </>
               ) : (
-                isEditMode ? 'Update Budget' : 'Create Budget'
+                <>
+                  <CheckCircleIcon className="h-4 w-4" />
+                  {isEditMode ? 'Update Budget' : 'Create Budget'}
+                </>
               )}
             </button>
           </div>
