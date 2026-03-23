@@ -69,15 +69,58 @@ export const treasurerService = {
    * @param {Object} budgetData 
    * @returns {Promise}
    */
+  // Create budget with full details
   createBudget: async (budgetData) => {
-    try {
-      console.log('📝 Creating budget:', budgetData);
-      const response = await api.post('/treasurer/budgets', budgetData);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error creating budget:', error);
-      throw error;
-    }
+    const response = await api.post('/treasurer/budgets', budgetData);
+    return response.data;
+  },
+  
+  // Get all budgets with filters
+  getBudgets: async (params = {}) => {
+    const response = await api.get('/treasurer/budgets', { params });
+    return response.data;
+  },
+  
+  // Get single budget
+  getBudget: async (id) => {
+    const response = await api.get(`/treasurer/budgets/${id}`);
+    return response.data;
+  },
+  
+  // Update budget
+  updateBudget: async (id, data) => {
+    const response = await api.put(`/treasurer/budgets/${id}`, data);
+    return response.data;
+  },
+  
+  // Submit budget for approval
+  submitBudgetForApproval: async (id) => {
+    const response = await api.post(`/treasurer/budgets/${id}/submit`);
+    return response.data;
+  },
+  
+  // Delete budget
+  deleteBudget: async (id) => {
+    const response = await api.delete(`/treasurer/budgets/${id}`);
+    return response.data;
+  },
+  
+  // Get budget variance analysis
+  getBudgetVariance: async (params = {}) => {
+    const response = await api.get('/treasurer/budget-variance', { params });
+    return response.data;
+  },
+  
+  // Get Chart of Accounts for budget categories
+  getChartOfAccounts: async (params = {}) => {
+    const response = await api.get('/accounting/chart-of-accounts', { params });
+    return response.data;
+  },
+  
+  // Get accounts by type for budget selection
+  getAccountsByType: async (accountType) => {
+    const response = await api.get('/accounting/accounts/by-category');
+    return response.data;
   },
 
   /**

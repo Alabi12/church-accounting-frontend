@@ -56,7 +56,7 @@ import ReportViewer from './pages/Reports/ReportViewer';
 import AccountantDashboard from './pages/Accountant/AccountantDashboard';
 import JournalEntries from './pages/Accountant/JournalEntries';
 import AddJournalEntry from './pages/Accountant/AddJournalEntry';
-import JournalEntryView from './pages/Accountant/JournalEntryView'; // Add this import
+import JournalEntryView from './pages/Accountant/JournalEntryView';
 import PendingApprovals from './pages/Accountant/PendingApprovals';
 import LedgerView from './pages/Accountant/LedgerView';
 import TrialBalance from './pages/Accountant/TrialBalance';
@@ -69,7 +69,6 @@ import StandardChartOfAccountsView from './pages/Accountant/StandardChartOfAccou
 // Chart of Accounts Components
 import ChartOfAccounts from './pages/Accountant/ChartOfAccounts';
 import ChartOfAccountsForm from './pages/Accountant/ChartOfAccountsForm';
-// import ChartOfAccountsView from './pages/Accountant/ChartOfAccountsView'; // Add this import
 
 // Auditor Pages
 import AuditorDashboard from './pages/Auditor/AuditorDashboard';
@@ -97,6 +96,7 @@ import FinancialOverview from './pages/Treasurer/FinancialOverview';
 import BudgetList from './pages/Treasurer/BudgetList';
 import BudgetForm from './pages/Treasurer/BudgetForm';
 import BudgetDetail from './pages/Treasurer/BudgetDetail';
+import BudgetVarianceReport from './pages/Treasurer/BudgetVarianceReport'; // <-- ADD THIS IMPORT
 
 // Finance Committee Pages
 import CommitteeDashboard from './pages/FinanceCommittee/CommitteeDashboard';
@@ -477,7 +477,7 @@ function App() {
                                   <Route path="security" element={<div>Security Settings</div>} />
                                 </Route>
 
-                                {/* ========== ACCOUNTANT ROUTES (UPDATED) ========== */}
+                                {/* ========== ACCOUNTANT ROUTES ========== */}
                                 <Route path="/accountant">
                                   <Route index element={<Navigate to="/accountant/dashboard" replace />} />
                                   <Route path="dashboard" element={
@@ -486,14 +486,14 @@ function App() {
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* ===== STANDARD CHART OF ACCOUNTS VIEW (REFERENCE) ===== */}
+                                  {/* Standard Chart of Accounts View */}
                                   <Route path="standard-chart-of-accounts" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <StandardChartOfAccountsView />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* ===== CHART OF ACCOUNTS WITH FULL CRUD ===== */}
+                                  {/* Chart of Accounts with Full CRUD */}
                                   <Route path="chart-of-accounts">
                                     <Route index element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
@@ -505,11 +505,6 @@ function App() {
                                         <ChartOfAccountsForm />
                                       </RoleBasedRoute>
                                     } />
-                                    {/* <Route path=":id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <ChartOfAccountsView />
-                                      </RoleBasedRoute>
-                                    } /> */}
                                     <Route path="edit/:id" element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                         <ChartOfAccountsForm />
@@ -517,7 +512,7 @@ function App() {
                                     } />
                                   </Route>
                                   
-                                  {/* JOURNAL ENTRIES */}
+                                  {/* Journal Entries */}
                                   <Route path="journal-entries">
                                     <Route index element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
@@ -541,49 +536,49 @@ function App() {
                                     } />
                                   </Route>
                                   
-                                  {/* PENDING APPROVALS */}
+                                  {/* Pending Approvals */}
                                   <Route path="pending-approvals" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <PendingApprovals />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* LEDGER */}
+                                  {/* Ledger */}
                                   <Route path="ledger" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <LedgerView />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* TRIAL BALANCE */}
+                                  {/* Trial Balance */}
                                   <Route path="trial-balance" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <TrialBalance />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* FINANCIAL STATEMENTS */}
+                                  {/* Financial Statements */}
                                   <Route path="financial-statements" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <FinancialStatements />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* ACCOUNT MANAGEMENT */}
+                                  {/* Account Management */}
                                   <Route path="account-management" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <AccountManagement />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* RECONCILIATION */}
+                                  {/* Reconciliation */}
                                   <Route path="reconciliation" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <Reconciliation />
                                     </RoleBasedRoute>
                                   } />
                                   
-                                  {/* TAX REPORTS */}
+                                  {/* Tax Reports */}
                                   <Route path="tax-reports" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                       <TaxReportsAccountant />
@@ -621,6 +616,11 @@ function App() {
                                       </RoleBasedRoute>
                                     } />
                                   </Route>
+                                  <Route path="budget-variance" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
+                                      <BudgetVarianceReport />
+                                    </RoleBasedRoute>
+                                  } />
                                   <Route path="transaction-approvals" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
                                       <TransactionApprovals />
