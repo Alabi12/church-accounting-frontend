@@ -7,7 +7,6 @@ import {
   PencilSquareIcon,
   TrashIcon,
   ArrowPathIcon,
-  DocumentDuplicateIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   BanknotesIcon,
@@ -18,71 +17,18 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   EyeIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorAlert from '../../components/common/ErrorAlert';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import toast from 'react-hot-toast';
-
-// Define the standard chart of accounts structure
-export const CHART_OF_ACCOUNTS = {
-  REVENUE: [
-    { code: '4010', name: 'Tithes', category: 'Income', normal_balance: 'credit' },
-    { code: '4020', name: 'Thanks Offering', category: 'Income', normal_balance: 'credit' },
-    { code: '4030', name: 'Harvest Proceeds', category: 'Income', normal_balance: 'credit' },
-    { code: '4040', name: 'Statutory Income', category: 'Income', normal_balance: 'credit' },
-    { code: '4050', name: 'Cemetery Income', category: 'Income', normal_balance: 'credit' },
-    { code: '4060', name: 'Special Offering', category: 'Income', normal_balance: 'credit' },
-    { code: '4070', name: 'Donations Received', category: 'Income', normal_balance: 'credit' },
-    { code: '4080', name: 'Adults\' Normal Offering', category: 'Income', normal_balance: 'credit' },
-    { code: '4090', name: 'Junior Youth Offering', category: 'Income', normal_balance: 'credit' },
-    { code: '4100', name: 'Children Service Offering', category: 'Income', normal_balance: 'credit' },
-    { code: '4110', name: 'Welfare Income', category: 'Income', normal_balance: 'credit' },
-    { code: '4120', name: 'Scholarship Income', category: 'Income', normal_balance: 'credit' },
-    { code: '4130', name: 'Interest', category: 'Income', normal_balance: 'credit' },
-    { code: '4140', name: 'Other Income', category: 'Income', normal_balance: 'credit' },
-  ],
-  EXPENSE: [
-    { code: '5010', name: 'Income Contribution', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5020', name: 'Cemetery', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5030', name: 'Staff Cost', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5040', name: 'Printing and Stationeries', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5050', name: 'Transportation', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5060', name: 'Utilities', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5070', name: 'General Repairs and Maintenance', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5080', name: 'Chapel Repairs and Maintenance', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5090', name: 'Manse Repairs and Maintenance', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5100', name: 'Evangelism Expenses', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5110', name: 'Conference and Meetings', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5120', name: 'Eucharist', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5130', name: 'Donations', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5140', name: 'Training and Courses', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5150', name: 'Entertainment and Hospitality', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5160', name: 'General and Admin. Expenses', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5170', name: 'Professional Charges', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5180', name: 'Bank Charges', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5190', name: 'Harvest Expense', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5200', name: 'Sundry Expense', category: 'Expenses', normal_balance: 'debit' },
-    { code: '5210', name: 'Depreciation', category: 'Expenses', normal_balance: 'debit' },
-  ],
-  ASSET: [
-    { code: '1010', name: 'Cash', category: 'Current Assets', normal_balance: 'debit' },
-    { code: '1020', name: 'Bank', category: 'Current Assets', normal_balance: 'debit' },
-    { code: '1030', name: 'Accounts Receivable', category: 'Current Assets', normal_balance: 'debit' },
-    { code: '1040', name: 'Stock', category: 'Current Assets', normal_balance: 'debit' },
-    { code: '1050', name: 'Investment', category: 'Non-Current Assets', normal_balance: 'debit' },
-    { code: '1060', name: 'Tangible Non-Current Assets', category: 'Non-Current Assets', normal_balance: 'debit' },
-  ],
-  LIABILITY: [
-    { code: '2010', name: 'Accounts Payable', category: 'Current Liabilities', normal_balance: 'credit' },
-    { code: '2020', name: 'Loans', category: 'Non-Current Liabilities', normal_balance: 'credit' },
-    { code: '2030', name: 'Accrued Expense', category: 'Current Liabilities', normal_balance: 'credit' },
-  ],
-  EQUITY: [
-    { code: '3010', name: 'Accumulated Fund', category: 'Equity', normal_balance: 'credit' },
-  ],
-};
+import { 
+  STANDARD_CHART_OF_ACCOUNTS, 
+  getAccountTypeName, 
+  getAccountTypeColor 
+} from '../../constants/chartOfAccounts';
 
 function ChartOfAccounts() {
   const navigate = useNavigate();
@@ -94,27 +40,13 @@ function ChartOfAccounts() {
     REVENUE: true,
     EXPENSE: true
   });
-  const [seedDialog, setSeedDialog] = useState({ isOpen: false });
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, accountId: null, accountName: '' });
   const [statusDialog, setStatusDialog] = useState({ isOpen: false, accountId: null, accountName: '', currentStatus: null });
 
-  // Fetch chart of accounts
+  // Fetch chart of accounts from backend
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['chartOfAccounts'],
-    queryFn: accountantService.getChartOfAccounts,
-  });
-
-  // Seed accounts mutation
-  const seedMutation = useMutation({
-    mutationFn: accountantService.seedChartOfAccounts,
-    onSuccess: () => {
-      queryClient.invalidateQueries(['chartOfAccounts']);
-      toast.success('Chart of accounts seeded successfully');
-      setSeedDialog({ isOpen: false });
-    },
-    onError: (error) => {
-      toast.error('Failed to seed chart of accounts');
-    },
+    queryFn: () => accountantService.getAccounts(),
   });
 
   // Delete account mutation
@@ -167,17 +99,6 @@ function ChartOfAccounts() {
     }
   };
 
-  const getTypeColor = (type) => {
-    switch(type) {
-      case 'ASSET': return 'text-blue-600 bg-blue-50';
-      case 'LIABILITY': return 'text-orange-600 bg-orange-50';
-      case 'EQUITY': return 'text-purple-600 bg-purple-50';
-      case 'REVENUE': return 'text-green-600 bg-green-50';
-      case 'EXPENSE': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
-    }
-  };
-
   const handleDeleteClick = (account) => {
     setDeleteDialog({
       isOpen: true,
@@ -206,7 +127,18 @@ function ChartOfAccounts() {
   if (isLoading) return <LoadingSpinner fullScreen />;
   if (error) return <ErrorAlert message="Failed to load chart of accounts" />;
 
-  const chartData = data?.chart_of_accounts || {};
+  // Get accounts from API response
+  const accounts = data?.accounts || [];
+  
+  // Group accounts by type
+  const groupedAccounts = accounts.reduce((acc, account) => {
+    const type = account.type || account.account_type || 'OTHER';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(account);
+    return acc;
+  }, {});
+
+  const accountTypes = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'];
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -215,28 +147,26 @@ function ChartOfAccounts() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Chart of Accounts</h1>
           <p className="mt-2 text-sm text-gray-700">
-            Manage your church's chart of accounts. Admin users can create, edit, and delete accounts.
+            Manage your church's chart of accounts based on the standard church accounting structure.
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setSeedDialog({ isOpen: true })}
-            className="inline-flex items-center rounded-md border border-transparent bg-[rgb(31,178,86)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(25,142,69)]"
+            onClick={() => navigate('/accountant/standard-chart-of-accounts')}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
           >
-            <DocumentDuplicateIcon className="-ml-1 mr-2 h-5 w-5" />
-            Seed Default Accounts
+            <ClipboardDocumentListIcon className="h-5 w-5 mr-2" />
+            View Standard Chart
           </button>
-
           <button
             type="button"
             onClick={() => navigate('/accountant/chart-of-accounts/new')}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="inline-flex items-center rounded-md border border-transparent bg-[rgb(31,178,86)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(25,142,69)]"
           >
             <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-            New Account
+            Add Account
           </button>
-
           <button
             type="button"
             onClick={() => refetch()}
@@ -248,142 +178,213 @@ function ChartOfAccounts() {
         </div>
       </div>
 
-      {/* Account Types Summary */}
+      {/* Account Types Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        {Object.entries(CHART_OF_ACCOUNTS).map(([type, accounts]) => (
-          <div key={type} className={`rounded-lg p-4 ${getTypeColor(type)}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                {getTypeIcon(type)}
-                <span className="ml-2 text-sm font-medium">{type}</span>
+        {accountTypes.map((type) => {
+          const colors = getAccountTypeColor(type);
+          const count = groupedAccounts[type]?.length || 0;
+          return (
+            <div key={type} className={`rounded-lg p-4 ${colors.bg} border ${colors.border}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  {getTypeIcon(type)}
+                  <span className={`ml-2 text-sm font-medium ${colors.text}`}>
+                    {getAccountTypeName(type)}
+                  </span>
+                </div>
+                <span className={`text-lg font-bold ${colors.text}`}>
+                  {count}
+                </span>
               </div>
-              <span className="text-lg font-bold">{accounts.length}</span>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Standard Chart of Accounts Reference */}
+      <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
+        <h3 className="text-sm font-semibold text-blue-800 mb-2">Standard Chart of Accounts Reference</h3>
+        <p className="text-xs text-blue-700 mb-3">
+          Based on the church accounting document. Use these as a reference when creating new accounts.
+          These accounts are not automatically created - you need to add them manually.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          <div>
+            <span className="font-medium text-green-600">Revenue:</span>
+            <span className="text-gray-600 ml-1">{STANDARD_CHART_OF_ACCOUNTS.REVENUE.length} accounts</span>
+            <button 
+              onClick={() => navigate('/accountant/chart-of-accounts/new', { state: { suggestedType: 'REVENUE' } })}
+              className="ml-2 text-blue-500 hover:text-blue-700 text-xs"
+            >
+              (Add)
+            </button>
           </div>
-        ))}
+          <div>
+            <span className="font-medium text-red-600">Expense:</span>
+            <span className="text-gray-600 ml-1">{STANDARD_CHART_OF_ACCOUNTS.EXPENSE.length} accounts</span>
+            <button 
+              onClick={() => navigate('/accountant/chart-of-accounts/new', { state: { suggestedType: 'EXPENSE' } })}
+              className="ml-2 text-blue-500 hover:text-blue-700 text-xs"
+            >
+              (Add)
+            </button>
+          </div>
+          <div>
+            <span className="font-medium text-blue-600">Asset:</span>
+            <span className="text-gray-600 ml-1">{STANDARD_CHART_OF_ACCOUNTS.ASSET.length} accounts</span>
+            <button 
+              onClick={() => navigate('/accountant/chart-of-accounts/new', { state: { suggestedType: 'ASSET' } })}
+              className="ml-2 text-blue-500 hover:text-blue-700 text-xs"
+            >
+              (Add)
+            </button>
+          </div>
+          <div>
+            <span className="font-medium text-orange-600">Liability:</span>
+            <span className="text-gray-600 ml-1">{STANDARD_CHART_OF_ACCOUNTS.LIABILITY.length} accounts</span>
+            <button 
+              onClick={() => navigate('/accountant/chart-of-accounts/new', { state: { suggestedType: 'LIABILITY' } })}
+              className="ml-2 text-blue-500 hover:text-blue-700 text-xs"
+            >
+              (Add)
+            </button>
+          </div>
+          <div>
+            <span className="font-medium text-purple-600">Equity:</span>
+            <span className="text-gray-600 ml-1">{STANDARD_CHART_OF_ACCOUNTS.EQUITY.length} accounts</span>
+            <button 
+              onClick={() => navigate('/accountant/chart-of-accounts/new', { state: { suggestedType: 'EQUITY' } })}
+              className="ml-2 text-blue-500 hover:text-blue-700 text-xs"
+            >
+              (Add)
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Accounts List */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        {Object.entries(chartData).length > 0 ? (
-          Object.entries(chartData).map(([type, accounts]) => (
-            <div key={type} className="border-b border-gray-200 last:border-0">
-              {/* Type Header */}
-              <button
-                onClick={() => toggleType(type)}
-                className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-center">
-                  {expandedTypes[type] ? (
-                    <ChevronDownIcon className="h-5 w-5 text-gray-500" />
-                  ) : (
-                    <ChevronRightIcon className="h-5 w-5 text-gray-500" />
-                  )}
-                  <span className={`ml-2 text-lg font-semibold ${getTypeColor(type).split(' ')[0]}`}>
-                    {type}
-                  </span>
-                  <span className="ml-3 text-sm text-gray-500">
-                    ({accounts.length} accounts)
-                  </span>
-                </div>
-              </button>
+        {Object.keys(groupedAccounts).length > 0 ? (
+          accountTypes.map((type) => {
+            const accountsList = groupedAccounts[type] || [];
+            if (accountsList.length === 0) return null;
+            
+            return (
+              <div key={type} className="border-b border-gray-200 last:border-0">
+                {/* Type Header */}
+                <button
+                  onClick={() => toggleType(type)}
+                  className="w-full flex items-center justify-between px-6 py-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center">
+                    {expandedTypes[type] ? (
+                      <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                    ) : (
+                      <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                    )}
+                    <span className={`ml-2 text-lg font-semibold ${getAccountTypeColor(type).text}`}>
+                      {getAccountTypeName(type)}
+                    </span>
+                    <span className="ml-3 text-sm text-gray-500">
+                      ({accountsList.length} accounts)
+                    </span>
+                  </div>
+                </button>
 
-              {/* Accounts */}
-              {expandedTypes[type] && (
-                <div className="px-6 py-4">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {accounts.map((account) => (
-                        <tr key={account.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-mono text-gray-600">
-                            {account.account_code}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                            {account.display_name || account.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            {account.category || '-'}
-                            {account.sub_category && ` / ${account.sub_category}`}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-medium">
-                            <span className={account.current_balance >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              GHS {account.current_balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center">
-                            <button
-                              onClick={() => handleStatusToggle(account)}
-                              className="inline-flex items-center"
-                              title={account.is_active ? 'Deactivate account' : 'Activate account'}
-                            >
-                              {account.is_active ? (
-                                <CheckCircleIcon className="h-5 w-5 text-green-500 hover:text-green-600" />
-                              ) : (
-                                <XCircleIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right">
-                            <div className="flex justify-end space-x-2">
-                              <button
-                                onClick={() => handleViewAccount(account.id)}
-                                className="text-blue-600 hover:text-blue-800"
-                                title="View details"
-                              >
-                                <EyeIcon className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => handleEditAccount(account.id)}
-                                className="text-indigo-600 hover:text-indigo-800"
-                                title="Edit account"
-                              >
-                                <PencilSquareIcon className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteClick(account)}
-                                className="text-red-600 hover:text-red-800"
-                                title="Delete account"
-                              >
-                                <TrashIcon className="h-5 w-5" />
-                              </button>
-                            </div>
-                          </td>
+                {/* Accounts */}
+                {expandedTypes[type] && (
+                  <div className="px-6 py-4 overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ))
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {accountsList.map((account) => (
+                          <tr key={account.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-mono text-gray-600">
+                              {account.code || account.account_code}
+                             </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              {account.display_name || account.name}
+                             </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                              {account.category || '-'}
+                             </td>
+                            <td className="px-4 py-3 text-sm text-right font-medium">
+                              <span className={account.balance >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                GHS {account.balance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                             </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              <button
+                                onClick={() => handleStatusToggle(account)}
+                                className="inline-flex items-center"
+                                title={account.is_active ? 'Deactivate account' : 'Activate account'}
+                              >
+                                {account.is_active ? (
+                                  <CheckCircleIcon className="h-5 w-5 text-green-500 hover:text-green-600" />
+                                ) : (
+                                  <XCircleIcon className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                                )}
+                              </button>
+                             </td>
+                            <td className="px-4 py-3 text-sm text-right">
+                              <div className="flex justify-end space-x-2">
+                                <button
+                                  onClick={() => handleViewAccount(account.id)}
+                                  className="text-blue-600 hover:text-blue-800"
+                                  title="View details"
+                                >
+                                  <EyeIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleEditAccount(account.id)}
+                                  className="text-indigo-600 hover:text-indigo-800"
+                                  title="Edit account"
+                                >
+                                  <PencilSquareIcon className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(account)}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Delete account"
+                                >
+                                  <TrashIcon className="h-5 w-5" />
+                                </button>
+                              </div>
+                             </td>
+                           </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-500">No accounts found. Click "Seed Default Accounts" to create the standard chart of accounts.</p>
+            <p className="text-gray-500 mb-4">No accounts found in the system.</p>
+            <p className="text-sm text-gray-400 mb-4">
+              Refer to the standard chart of accounts above for guidance on what accounts to create.
+            </p>
+            <button
+              onClick={() => navigate('/accountant/chart-of-accounts/new')}
+              className="inline-flex items-center rounded-md border border-transparent bg-[rgb(31,178,86)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(25,142,69)]"
+            >
+              <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+              Create First Account
+            </button>
           </div>
         )}
       </div>
-
-      {/* Seed Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={seedDialog.isOpen}
-        onClose={() => setSeedDialog({ isOpen: false })}
-        onConfirm={() => seedMutation.mutate()}
-        title="Seed Default Chart of Accounts"
-        message="This will create the standard church chart of accounts. Existing accounts will be skipped. Continue?"
-        confirmText="Seed Accounts"
-        cancelText="Cancel"
-        type="info"
-      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

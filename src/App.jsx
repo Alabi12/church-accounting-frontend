@@ -56,6 +56,7 @@ import ReportViewer from './pages/Reports/ReportViewer';
 import AccountantDashboard from './pages/Accountant/AccountantDashboard';
 import JournalEntries from './pages/Accountant/JournalEntries';
 import AddJournalEntry from './pages/Accountant/AddJournalEntry';
+import JournalEntryView from './pages/Accountant/JournalEntryView'; // Add this import
 import PendingApprovals from './pages/Accountant/PendingApprovals';
 import LedgerView from './pages/Accountant/LedgerView';
 import TrialBalance from './pages/Accountant/TrialBalance';
@@ -63,11 +64,12 @@ import FinancialStatements from './pages/Accountant/FinancialStatements';
 import AccountManagement from './pages/Accountant/AccountManagement';
 import Reconciliation from './pages/Accountant/Reconciliation';
 import TaxReportsAccountant from './pages/Accountant/TaxReports';
+import StandardChartOfAccountsView from './pages/Accountant/StandardChartOfAccountsView';
 
-// NEW: Chart of Accounts Components
+// Chart of Accounts Components
 import ChartOfAccounts from './pages/Accountant/ChartOfAccounts';
 import ChartOfAccountsForm from './pages/Accountant/ChartOfAccountsForm';
-import ChartOfAccountsView from './pages/Accountant/ChartOfAccountsView';
+// import ChartOfAccountsView from './pages/Accountant/ChartOfAccountsView'; // Add this import
 
 // Auditor Pages
 import AuditorDashboard from './pages/Auditor/AuditorDashboard';
@@ -484,6 +486,13 @@ function App() {
                                     </RoleBasedRoute>
                                   } />
                                   
+                                  {/* ===== STANDARD CHART OF ACCOUNTS VIEW (REFERENCE) ===== */}
+                                  <Route path="standard-chart-of-accounts" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                      <StandardChartOfAccountsView />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
                                   {/* ===== CHART OF ACCOUNTS WITH FULL CRUD ===== */}
                                   <Route path="chart-of-accounts">
                                     <Route index element={
@@ -496,11 +505,11 @@ function App() {
                                         <ChartOfAccountsForm />
                                       </RoleBasedRoute>
                                     } />
-                                    <Route path=":id" element={
+                                    {/* <Route path=":id" element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                         <ChartOfAccountsView />
                                       </RoleBasedRoute>
-                                    } />
+                                    } /> */}
                                     <Route path="edit/:id" element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                         <ChartOfAccountsForm />
@@ -523,6 +532,11 @@ function App() {
                                     <Route path="edit/:id" element={
                                       <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
                                         <AddJournalEntry />
+                                      </RoleBasedRoute>
+                                    } />
+                                    <Route path="view/:id" element={
+                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                        <JournalEntryView />
                                       </RoleBasedRoute>
                                     } />
                                   </Route>
