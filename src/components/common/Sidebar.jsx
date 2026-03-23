@@ -1,3 +1,4 @@
+// Sidebar.jsx - Corrected imports
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,7 +57,7 @@ import {
   ArrowPathIcon,
   
   // Payroll & Leave Icons
-  BanknotesIcon as PayrollIcon,
+  BanknotesIcon as PayrollIcon,  // Use BanknotesIcon as PayrollIcon
   DocumentTextIcon as PayslipIcon,
   UserGroupIcon as EmployeeIcon,
   CalendarDaysIcon,
@@ -75,7 +76,7 @@ import {
   PresentationChartBarIcon as FinancialStatementsIcon,
   DocumentDuplicateIcon as JournalIcon,
   FolderIcon as ChartOfAccountsIcon,
-  BuildingOfficeIcon as AccountsIcon,
+  BuildingOfficeIcon as AccountsIcon,  // Use BuildingOfficeIcon instead
   BanknotesIcon as CashIcon,
   CreditCardIcon as BankIcon,
   ArrowPathIcon as ReconciliationIcon,
@@ -293,22 +294,59 @@ export default function Sidebar() {
     },
     reportsSection,
     {
-      id: 'treasurer',
-      title: 'Treasurer',
-      icon: ShieldCheckIcon,
-      color: 'yellow',
-      isCollapsible: true,
-      isExpanded: expandedSections.treasurer,
-      onToggle: () => toggleSection('treasurer'),
-      items: [
-        { name: 'Dashboard', to: '/treasurer/dashboard', icon: HomeIcon },
-        { name: 'Payroll Dashboard', to: '/payroll/dashboard', icon: PayrollIcon },
-        { name: 'Transaction Approvals', to: '/treasurer/transaction-approvals', icon: CheckBadgeIcon },
-        { name: 'Budget Management', to: '/treasurer/budgets', icon: ChartBarIcon },
-        { name: 'Create Budget', to: '/treasurer/budgets/create', icon: PlusIcon },
-        { name: 'Financial Statements', to: '/accountant/financial-statements', icon: FinancialStatementsIcon },
-      ],
-      access: ['super_admin', 'admin', 'treasurer']
+  id: 'treasurer',
+  title: 'Treasurer',
+  icon: ShieldCheckIcon,
+  color: 'yellow',
+  isCollapsible: true,
+  isExpanded: expandedSections.treasurer,
+  onToggle: () => toggleSection('treasurer'),
+  items: [
+    { 
+      name: 'Dashboard', 
+      to: '/treasurer/dashboard', 
+      icon: HomeIcon, 
+      description: 'Overview of treasury activities' 
+    },
+    { 
+      name: 'Payroll Dashboard', 
+      to: '/payroll/dashboard', 
+      icon: PayrollIcon, 
+      description: 'Payroll overview and management' 
+    },
+    { 
+      name: 'Transaction Approvals', 
+      to: '/treasurer/transaction-approvals', 
+      icon: CheckBadgeIcon, 
+      description: 'Review and approve transactions' 
+    },
+    { 
+      name: 'Budget Management', 
+      to: '/treasurer/budgets', 
+      icon: ChartBarIcon, 
+      description: 'View and manage all budgets' 
+    },
+    { 
+      name: 'Create Budget', 
+      to: '/treasurer/budgets/create', 
+      icon: PlusIcon, 
+      description: 'Create new revenue or expense budget' 
+    },
+    { 
+      name: 'Budget Variance Report', 
+      to: '/treasurer/budget-variance', 
+      icon: PresentationChartBarIcon, 
+      description: 'Analyze budget vs actual performance',
+      badge: 'New' 
+    },
+    { 
+      name: 'Financial Statements', 
+      to: '/accountant/financial-statements', 
+      icon: FinancialStatementsIcon, 
+      description: 'View income statement and balance sheet' 
+    },
+  ],
+  access: ['super_admin', 'admin', 'treasurer']
     },
     {
       id: 'auditor',

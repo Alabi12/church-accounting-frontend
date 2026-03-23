@@ -5,16 +5,16 @@ import {
   DocumentTextIcon,
   ArrowPathIcon,
   DocumentArrowDownIcon,
-  CalendarIcon,
   BanknotesIcon,
   CurrencyDollarIcon,
   ScaleIcon,
   BriefcaseIcon,
-  BuildingOfficeIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   CreditCardIcon,
-  ClockIcon,
+  ChartBarIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -23,13 +23,15 @@ import toast from 'react-hot-toast';
 
 const FinancialStatements = () => {
   const [loading, setLoading] = useState(false);
-  const [activeStatement, setActiveStatement] = useState('trialBalance');
+  const [activeStatement, setActiveStatement] = useState('incomeStatement');
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     asAt: new Date().toISOString().split('T')[0]
   });
   const [statementData, setStatementData] = useState(null);
+  const [budgetComparison, setBudgetComparison] = useState(null);
+  const [budgetLoading, setBudgetLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const statements = [
@@ -56,6 +58,8 @@ const FinancialStatements = () => {
           break;
         case 'incomeStatement':
           data = await accountantService.getIncomeStatement(dateRange.startDate, dateRange.endDate);
+          // Fetch budget comparison separately
+          await fetchBudgetComparison();
           break;
         case 'balanceSheet':
           data = await accountantService.getBalanceSheet(dateRange.asAt);
@@ -81,9 +85,219 @@ const FinancialStatements = () => {
     }
   };
 
-  const handleExport = () => {
-    // Implement CSV export
-    toast.info('Export feature coming soon');
+  const fetchBudgetComparison = async () => {
+    try {
+      setBudgetLoading(true);
+      const data = await accountantService.getFinancialStatementsWithBudget(
+        dateRange.startDate, 
+        dateRange.endDate
+      );
+      console.log('📊 Budget comparison data:', data);
+      setBudgetComparison(data.budget_comparison);
+    } catch (error) {
+      console.warn('Could not fetch budget comparison:', error);
+      setBudgetComparison(null);
+    } finally {
+      setBudgetLoading(false);
+    }
+  };
+
+  const handleExport = async (format = 'csv') => {
+    try {
+      let url;
+      switch (activeStatement) {
+        case 'incomeStatement':
+          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=income&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          break;
+        case 'balanceSheet':
+          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=balance&endDate=${dateRange.asAt}&format=${format}`;
+          break;
+        case 'receiptPayment':
+          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=receipt-payment&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          break;
+        case 'cashFlow':
+          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=cashflow&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          break;
+        default:
+          toast.info('Export not available for this statement');
+          return;
+      }
+      
+      window.open(url, '_blank');
+      toast.success(`Exporting as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export statement');
+    }
+  };
+
+  // Budget Variance Card Component
+  const BudgetVarianceCard = () => {
+    if (!budgetComparison) {
+      return (
+        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 text-center">
+          <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500">No budget data available for this period</p>
+          <p className="text-xs text-gray-400 mt-1">Please ensure budgets are created and approved</p>
+        </div>
+      );
+    }
+
+    const { revenue, expenses, net } = budgetComparison;
+
+    return (
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Budget vs Actual Variance Analysis</h3>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">Favorable ↑</span>
+            <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full">Unfavorable ↓</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Revenue Card */}
+          <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <ArrowTrendingUpIcon className="h-5 w-5 text-green-600" />
+                <h4 className="font-semibold text-gray-700">Revenue</h4>
+              </div>
+              {revenue.favorable ? (
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircleIcon className="h-5 w-5 text-red-500" />
+              )}
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Budgeted</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(revenue.budget)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Actual</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(revenue.actual)}</p>
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-600">Variance</p>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${revenue.favorable ? 'text-green-600' : 'text-red-600'}`}>
+                      {revenue.variance >= 0 ? '+' : ''}{formatCurrency(revenue.variance)}
+                    </p>
+                    <p className={`text-xs ${revenue.favorable ? 'text-green-500' : 'text-red-500'}`}>
+                      ({revenue.variance_percentage}%)
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${revenue.favorable ? 'bg-green-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(Math.abs(revenue.variance_percentage), 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Expenses Card */}
+          <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <ArrowTrendingDownIcon className="h-5 w-5 text-red-600" />
+                <h4 className="font-semibold text-gray-700">Expenses</h4>
+              </div>
+              {expenses.favorable ? (
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircleIcon className="h-5 w-5 text-red-500" />
+              )}
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Budgeted</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(expenses.budget)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Actual</p>
+                <p className="text-xl font-bold text-gray-900">{formatCurrency(expenses.actual)}</p>
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-600">Variance</p>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${expenses.favorable ? 'text-green-600' : 'text-red-600'}`}>
+                      {expenses.variance >= 0 ? '+' : ''}{formatCurrency(expenses.variance)}
+                    </p>
+                    <p className={`text-xs ${expenses.favorable ? 'text-green-500' : 'text-red-500'}`}>
+                      ({expenses.variance_percentage}%)
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${expenses.favorable ? 'bg-green-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(Math.abs(expenses.variance_percentage), 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {expenses.favorable 
+                    ? `✓ ${formatCurrency(Math.abs(expenses.variance))} under budget` 
+                    : `✗ ${formatCurrency(Math.abs(expenses.variance))} over budget`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Net Surplus/Deficit Card */}
+          <div className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-shadow ${
+            net.favorable ? 'border-green-200' : 'border-red-200'
+          }`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <ChartBarIcon className="h-5 w-5 text-blue-600" />
+                <h4 className="font-semibold text-gray-700">Net Surplus/(Deficit)</h4>
+              </div>
+              {net.favorable ? (
+                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircleIcon className="h-5 w-5 text-red-500" />
+              )}
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Budgeted</p>
+                <p className={`text-xl font-bold ${net.budget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(net.budget)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Actual</p>
+                <p className={`text-xl font-bold ${net.actual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(net.actual)}
+                </p>
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm font-medium text-gray-600">Variance</p>
+                  <p className={`text-lg font-bold ${net.favorable ? 'text-green-600' : 'text-red-600'}`}>
+                    {net.variance >= 0 ? '+' : ''}{formatCurrency(net.variance)}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {net.favorable 
+                    ? `✓ Performance ${formatCurrency(Math.abs(net.variance))} better than budget` 
+                    : `✗ Performance ${formatCurrency(Math.abs(net.variance))} worse than budget`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const getTypeIcon = (type) => {
@@ -102,7 +316,6 @@ const FinancialStatements = () => {
     
     const { accounts, totalDebits, totalCredits, isBalanced } = statementData;
     
-    // Group accounts by type
     const grouped = accounts.reduce((acc, account) => {
       const type = account.type || 'OTHER';
       if (!acc[type]) acc[type] = [];
@@ -112,7 +325,6 @@ const FinancialStatements = () => {
 
     return (
       <div className="space-y-6">
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <p className="text-sm text-gray-500">Total Debits</p>
@@ -130,7 +342,6 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Trial Balance Table */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -144,7 +355,6 @@ const FinancialStatements = () => {
             <tbody className="divide-y divide-gray-200">
               {Object.entries(grouped).map(([type, accounts]) => (
                 <React.Fragment key={type}>
-                  {/* Type Header */}
                   <tr className="bg-gray-100">
                     <td colSpan="4" className="px-4 py-2 text-sm font-semibold text-gray-700">
                       <div className="flex items-center">
@@ -153,8 +363,6 @@ const FinancialStatements = () => {
                       </div>
                     </td>
                   </tr>
-                  
-                  {/* Accounts */}
                   {accounts.map((account, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm font-mono text-gray-600">{account.code}</td>
@@ -169,8 +377,6 @@ const FinancialStatements = () => {
                   ))}
                 </React.Fragment>
               ))}
-              
-              {/* Grand Total */}
               <tr className="bg-gray-200 font-bold">
                 <td colSpan="2" className="px-4 py-3 text-sm text-right">GRAND TOTAL</td>
                 <td className="px-4 py-3 text-sm text-right text-green-700">{formatCurrency(totalDebits)}</td>
@@ -190,6 +396,15 @@ const FinancialStatements = () => {
     
     return (
       <div className="space-y-6">
+        {/* Budget Variance Card */}
+        {budgetLoading ? (
+          <div className="flex justify-center py-8">
+            <LoadingSpinner size="small" />
+          </div>
+        ) : (
+          <BudgetVarianceCard />
+        )}
+        
         {/* Income Section */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
@@ -291,7 +506,6 @@ const FinancialStatements = () => {
     
     return (
       <div className="space-y-6">
-        {/* Assets */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">ASSETS</h3>
@@ -299,13 +513,10 @@ const FinancialStatements = () => {
           <div className="p-4">
             <table className="min-w-full">
               <tbody>
-                {/* Current Assets */}
                 {assets?.current?.length > 0 && (
                   <>
                     <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">
-                        Current Assets
-                      </td>
+                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">Current Assets</td>
                       <td className="px-4 py-2 text-sm text-right font-semibold text-blue-600">
                         {formatCurrency(assets.current.reduce((sum, a) => sum + a.amount, 0))}
                       </td>
@@ -314,49 +525,20 @@ const FinancialStatements = () => {
                       <tr key={idx} className="hover:bg-gray-50">
                         <td className="px-4 py-1 text-xs font-mono text-gray-500">{item.code}</td>
                         <td className="px-4 py-1 text-sm text-gray-600">{item.name}</td>
-                        <td className="px-4 py-1 text-sm text-right text-blue-600">
-                          {formatCurrency(item.amount)}
-                        </td>
+                        <td className="px-4 py-1 text-sm text-right text-blue-600">{formatCurrency(item.amount)}</td>
                       </tr>
                     ))}
                   </>
                 )}
-
-                {/* Fixed Assets */}
-                {assets?.fixed?.length > 0 && (
-                  <>
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">
-                        Fixed Assets
-                      </td>
-                      <td className="px-4 py-2 text-sm text-right font-semibold text-blue-600">
-                        {formatCurrency(assets.fixed.reduce((sum, a) => sum + a.amount, 0))}
-                      </td>
-                    </tr>
-                    {assets.fixed.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs font-mono text-gray-500">{item.code}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{item.name}</td>
-                        <td className="px-4 py-1 text-sm text-right text-blue-600">
-                          {formatCurrency(item.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </>
-                )}
-
                 <tr className="bg-blue-100 font-bold">
                   <td colSpan="2" className="px-4 py-3 text-sm">TOTAL ASSETS</td>
-                  <td className="px-4 py-3 text-sm text-right text-blue-700">
-                    {formatCurrency(assets?.total || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-blue-700">{formatCurrency(assets?.total || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Liabilities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">LIABILITIES</h3>
@@ -368,32 +550,18 @@ const FinancialStatements = () => {
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-xs font-mono text-gray-500">{item.code}</td>
                     <td className="px-4 py-2 text-sm text-gray-600">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-orange-600">
-                      {formatCurrency(item.amount)}
-                    </td>
-                  </tr>
-                ))}
-                {liabilities?.longTerm?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-xs font-mono text-gray-500">{item.code}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-orange-600">
-                      {formatCurrency(item.amount)}
-                    </td>
+                    <td className="px-4 py-2 text-sm text-right text-orange-600">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-orange-100 font-bold">
                   <td colSpan="2" className="px-4 py-3 text-sm">TOTAL LIABILITIES</td>
-                  <td className="px-4 py-3 text-sm text-right text-orange-700">
-                    {formatCurrency(liabilities?.total || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-orange-700">{formatCurrency(liabilities?.total || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Equity */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">EQUITY</h3>
@@ -405,23 +573,18 @@ const FinancialStatements = () => {
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-xs font-mono text-gray-500">{item.code}</td>
                     <td className="px-4 py-2 text-sm text-gray-600">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-purple-600">
-                      {formatCurrency(item.amount)}
-                    </td>
+                    <td className="px-4 py-2 text-sm text-right text-purple-600">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-purple-100 font-bold">
                   <td colSpan="2" className="px-4 py-3 text-sm">TOTAL EQUITY</td>
-                  <td className="px-4 py-3 text-sm text-right text-purple-700">
-                    {formatCurrency(equity?.total || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-purple-700">{formatCurrency(equity?.total || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Verification */}
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-700">Assets = Liabilities + Equity</span>
@@ -434,217 +597,120 @@ const FinancialStatements = () => {
     );
   };
 
- const renderReceiptPayment = () => {
-  if (!statementData) return null;
-  
-  const { openingBalances, receipts, payments, closingBalances } = statementData;
-  
-  return (
-    <div className="space-y-6">
-      {/* Opening Balances */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-700">OPENING BALANCES</h3>
-        </div>
-        <div className="p-4">
-          <table className="min-w-full">
-            <tbody>
-              {openingBalances?.cashAccounts?.map((acc, idx) => (
-                <tr key={idx}>
-                  <td className="px-4 py-2 text-sm text-gray-600">
-                    {acc.code} - Cash: {acc.name}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-right text-gray-900">
-                    {formatCurrency(acc.openingBalance)}
-                  </td>
+  const renderReceiptPayment = () => {
+    if (!statementData) return null;
+    
+    const { openingBalances, receipts, payments, closingBalances } = statementData;
+    
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-700">OPENING BALANCES</h3>
+          </div>
+          <div className="p-4">
+            <table className="min-w-full">
+              <tbody>
+                {openingBalances?.cashAccounts?.map((acc, idx) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm text-gray-600">{acc.code} - Cash: {acc.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(acc.openingBalance)}</td>
+                  </tr>
+                ))}
+                {openingBalances?.bankAccounts?.map((acc, idx) => (
+                  <tr key={idx}>
+                    <td className="px-4 py-2 text-sm text-gray-600">{acc.code} - Bank: {acc.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(acc.openingBalance)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-100 font-bold">
+                  <td className="px-4 py-3 text-sm">TOTAL OPENING BALANCE</td>
+                  <td className="px-4 py-3 text-sm text-right">{formatCurrency(openingBalances?.total || 0)}</td>
                 </tr>
-              ))}
-              {openingBalances?.bankAccounts?.map((acc, idx) => (
-                <tr key={idx}>
-                  <td className="px-4 py-2 text-sm text-gray-600">
-                    {acc.code} - Bank: {acc.name}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-right text-gray-900">
-                    {formatCurrency(acc.openingBalance)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-gray-100 font-bold">
-                <td className="px-4 py-3 text-sm">TOTAL OPENING BALANCE</td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {formatCurrency(openingBalances?.total || 0)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      {/* Receipts by Account */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-green-50 border-b border-green-200">
-          <h3 className="text-lg font-semibold text-green-700">RECEIPTS</h3>
-        </div>
-        <div className="p-4">
-          {Object.entries(receipts?.byAccount || {}).map(([accountKey, data]) => (
-            <div key={accountKey} className="mb-4">
-              <div className="flex justify-between items-center bg-green-100 p-2 rounded">
-                <span className="font-semibold text-green-800">
-                  {data.code} - {data.name}
-                </span>
-                <span className="font-bold text-green-600">
-                  {formatCurrency(data.total)}
-                </span>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-green-50 border-b border-green-200">
+            <h3 className="text-lg font-semibold text-green-700">RECEIPTS</h3>
+          </div>
+          <div className="p-4">
+            {Object.entries(receipts?.byAccount || {}).map(([accountKey, data]) => (
+              <div key={accountKey} className="mb-4">
+                <div className="flex justify-between items-center bg-green-100 p-2 rounded">
+                  <span className="font-semibold text-green-800">{data.code} - {data.name}</span>
+                  <span className="font-bold text-green-600">{formatCurrency(data.total)}</span>
+                </div>
+                <table className="min-w-full mt-2">
+                  <tbody>
+                    {data.items?.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
+                        <td className="px-4 py-1 text-sm text-gray-600">{item.description}</td>
+                        <td className="px-4 py-1 text-sm text-right text-green-600">{formatCurrency(item.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <table className="min-w-full mt-2">
-                <tbody>
-                  {data.items?.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
-                      <td className="px-4 py-1 text-sm text-gray-600">
-                        {item.description}
-                      </td>
-                      <td className="px-4 py-1 text-sm text-right text-green-600">
-                        {formatCurrency(item.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            ))}
+            <div className="bg-green-100 p-3 rounded font-bold flex justify-between mt-4">
+              <span>TOTAL RECEIPTS</span>
+              <span className="text-green-700">{formatCurrency(receipts?.total || 0)}</span>
             </div>
-          ))}
-          <div className="bg-green-100 p-3 rounded font-bold flex justify-between mt-4">
-            <span>TOTAL RECEIPTS</span>
-            <span className="text-green-700">{formatCurrency(receipts?.total || 0)}</span>
           </div>
         </div>
-      </div>
 
-      {/* Payments by Account */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-          <h3 className="text-lg font-semibold text-red-700">PAYMENTS</h3>
-        </div>
-        <div className="p-4">
-          {Object.entries(payments?.byAccount || {}).map(([accountKey, data]) => (
-            <div key={accountKey} className="mb-4">
-              <div className="flex justify-between items-center bg-red-100 p-2 rounded">
-                <span className="font-semibold text-red-800">
-                  {data.code} - {data.name}
-                </span>
-                <span className="font-bold text-red-600">
-                  {formatCurrency(data.total)}
-                </span>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 bg-red-50 border-b border-red-200">
+            <h3 className="text-lg font-semibold text-red-700">PAYMENTS</h3>
+          </div>
+          <div className="p-4">
+            {Object.entries(payments?.byAccount || {}).map(([accountKey, data]) => (
+              <div key={accountKey} className="mb-4">
+                <div className="flex justify-between items-center bg-red-100 p-2 rounded">
+                  <span className="font-semibold text-red-800">{data.code} - {data.name}</span>
+                  <span className="font-bold text-red-600">{formatCurrency(data.total)}</span>
+                </div>
+                <table className="min-w-full mt-2">
+                  <tbody>
+                    {data.items?.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
+                        <td className="px-4 py-1 text-sm text-gray-600">{item.description}</td>
+                        <td className="px-4 py-1 text-sm text-right text-red-600">{formatCurrency(item.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <table className="min-w-full mt-2">
-                <tbody>
-                  {data.items?.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50">
-                      <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
-                      <td className="px-4 py-1 text-sm text-gray-600">
-                        {item.description}
-                      </td>
-                      <td className="px-4 py-1 text-sm text-right text-red-600">
-                        {formatCurrency(item.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            ))}
+            <div className="bg-red-100 p-3 rounded font-bold flex justify-between mt-4">
+              <span>TOTAL PAYMENTS</span>
+              <span className="text-red-700">{formatCurrency(payments?.total || 0)}</span>
             </div>
-          ))}
-          <div className="bg-red-100 p-3 rounded font-bold flex justify-between mt-4">
-            <span>TOTAL PAYMENTS</span>
-            <span className="text-red-700">{formatCurrency(payments?.total || 0)}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <p className="text-sm text-blue-600 mb-1">Net Cash Flow</p>
+            <p className="text-2xl font-bold text-blue-700">
+              {formatCurrency((receipts?.total || 0) - (payments?.total || 0))}
+            </p>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+            <p className="text-sm text-purple-600 mb-1">Closing Balance</p>
+            <p className="text-2xl font-bold text-purple-700">
+              {formatCurrency(closingBalances?.total || 0)}
+            </p>
           </div>
         </div>
       </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-          <p className="text-sm text-blue-600 mb-1">Net Cash Flow</p>
-          <p className="text-2xl font-bold text-blue-700">
-            {formatCurrency((receipts?.total || 0) - (payments?.total || 0))}
-          </p>
-        </div>
-        <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-          <p className="text-sm text-purple-600 mb-1">Closing Balance</p>
-          <p className="text-2xl font-bold text-purple-700">
-            {formatCurrency(closingBalances?.total || 0)}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Add to FinancialStatements.jsx - Budget Comparison Section
-
-const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
-  if (!budgetComparison) return null;
-
-  return (
-    <div className="mb-8">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Budget vs Actual Comparison</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <p className="text-sm text-gray-500">Revenue</p>
-          <div className="mt-2 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span>Budget:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.revenue.budget)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Actual:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.revenue.actual)}</span>
-            </div>
-            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.revenue.favorable ? 'text-green-600' : 'text-red-600'}`}>
-              <span>Variance:</span>
-              <span>{budgetComparison.revenue.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.revenue.variance)} ({budgetComparison.revenue.variance_percentage}%)</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <p className="text-sm text-gray-500">Expenses</p>
-          <div className="mt-2 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span>Budget:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.expenses.budget)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Actual:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.expenses.actual)}</span>
-            </div>
-            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.expenses.favorable ? 'text-green-600' : 'text-red-600'}`}>
-              <span>Variance:</span>
-              <span>{budgetComparison.expenses.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.expenses.variance)} ({budgetComparison.expenses.variance_percentage}%)</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <p className="text-sm text-gray-500">Net Surplus/(Deficit)</p>
-          <div className="mt-2 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span>Budget:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.net.budget)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Actual:</span>
-              <span className="font-medium">{formatCurrency(budgetComparison.net.actual)}</span>
-            </div>
-            <div className={`flex justify-between text-sm font-medium pt-1 border-t ${budgetComparison.net.favorable ? 'text-green-600' : 'text-red-600'}`}>
-              <span>Variance:</span>
-              <span>{budgetComparison.net.variance >= 0 ? '+' : ''}{formatCurrency(budgetComparison.net.variance)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+    );
+  };
 
   const renderCashFlow = () => {
     if (!statementData) return null;
@@ -653,7 +719,6 @@ const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
     
     return (
       <div className="space-y-6">
-        {/* Operating Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">CASH FLOW FROM OPERATING ACTIVITIES</h3>
@@ -664,23 +729,18 @@ const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
                 {operating?.items?.map((item, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">
-                      {formatCurrency(item.amount)}
-                    </td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-blue-100 font-bold">
                   <td className="px-4 py-3 text-sm">Net Cash from Operating Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-blue-700">
-                    {formatCurrency(operating?.net || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-blue-700">{formatCurrency(operating?.net || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Investing Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">CASH FLOW FROM INVESTING ACTIVITIES</h3>
@@ -691,23 +751,18 @@ const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
                 {investing?.items?.map((item, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">
-                      {formatCurrency(item.amount)}
-                    </td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-purple-100 font-bold">
                   <td className="px-4 py-3 text-sm">Net Cash from Investing Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-purple-700">
-                    {formatCurrency(investing?.net || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-purple-700">{formatCurrency(investing?.net || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Financing Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">CASH FLOW FROM FINANCING ACTIVITIES</h3>
@@ -718,23 +773,18 @@ const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
                 {financing?.items?.map((item, idx) => (
                   <tr key={idx} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">
-                      {formatCurrency(item.amount)}
-                    </td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-orange-100 font-bold">
                   <td className="px-4 py-3 text-sm">Net Cash from Financing Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-orange-700">
-                    {formatCurrency(financing?.net || 0)}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-right text-orange-700">{formatCurrency(financing?.net || 0)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <p className="text-sm text-gray-600 mb-1">Beginning Cash</p>
@@ -778,12 +828,12 @@ const BudgetComparisonSection = ({ incomeStatement, budgetComparison }) => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Financial Statements</h1>
             <p className="mt-2 text-sm text-gray-600">
-              View and analyze your church's financial position
+              View and analyze your church's financial position with budget variance analysis
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
             <button
-              onClick={handleExport}
+              onClick={() => handleExport('csv')}
               disabled={!statementData}
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >

@@ -350,13 +350,6 @@ deleteJournalEntry: async (id) => {
     }
   },
 
-  // Add to your accountantService object in accountant.js
-
-// ==================== FINANCIAL STATEMENTS EXPORT ====================
-
-// In accountant.js - add these methods to your accountantService
-
-// ==================== FINANCIAL STATEMENTS METHODS ====================
 
 getTrialBalance: async (asAt = null) => {
   try {
@@ -374,8 +367,6 @@ getTrialBalance: async (asAt = null) => {
   }
 },
 
-
-// In accountant.js, update these methods:
 
 getIncomeStatement: async (startDate, endDate) => {
   try {
@@ -447,6 +438,32 @@ getCashFlowStatement: async (startDate, endDate) => {
     throw error;
   }
 },
+
+// Add to accountantService
+  getFinancialStatementsWithBudget: async (startDate, endDate) => {
+    try {
+      const response = await api.get('/accounting/financial-statements-with-budget', {
+        params: { startDate, endDate }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching financial statements with budget:', error);
+      throw error;
+    }
+  },
+
+  getBudgetVariance: async (params = {}) => {
+    const response = await api.get('/treasurer/budget-variance', { params });
+    return response.data;
+  },
+  
+  exportBudgetVariance: async (params = {}, format = 'csv') => {
+    const response = await api.get('/treasurer/budget-variance/export', { 
+      params: { ...params, format },
+      responseType: 'blob'
+    });
+    return response.data;
+  },
 
 // ==================== RECONCILIATION METHODS ====================
 getReconciliationData: async (params) => {
