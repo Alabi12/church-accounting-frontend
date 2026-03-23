@@ -452,7 +452,7 @@ const BudgetManagement = () => {
 
                 <div className="mt-4 flex justify-end space-x-2">
                   <button
-                    onClick={() => navigate(`/treasurer/budgets/${budget.id}`)}
+                    onClick={() => navigate(`/treasurer/budgets/edit/${budget.id}`)}
                     className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                     title="View Details"
                   >

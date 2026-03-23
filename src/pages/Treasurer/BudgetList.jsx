@@ -1,5 +1,5 @@
 // pages/Treasurer/BudgetList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,7 +13,8 @@ import {
   ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { treasurerService } from '../../services/treasurer';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -46,31 +47,38 @@ const BudgetList = () => {
   const [departments, setDepartments] = useState([]);
   const [actionLoading, setActionLoading] = useState({});
 
-  useEffect(() => {
-    fetchBudgets();
-  }, [filters.page]);
-
-  const fetchBudgets = async () => {
+  const fetchBudgets = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await treasurerService.getBudgets({
+      
+      const params = {
         status: filters.status !== 'all' ? filters.status : undefined,
         department: filters.department !== 'all' ? filters.department : undefined,
         search: filters.search || undefined,
         page: filters.page,
-        perPage: 10
-      });
+        per_page: 10
+      };
+      
+      console.log('📡 Fetching budgets with params:', params);
+      
+      const response = await treasurerService.getBudgets(params);
       
       setBudgets(response.budgets || []);
-      setStats(response.stats || {});
+      setStats(response.stats || {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        rejected: 0,
+        totalAmount: 0
+      });
       setPagination({
         total: response.total || 0,
         pages: response.pages || 1,
-        currentPage: response.currentPage || 1
+        currentPage: response.currentPage || filters.page
       });
 
       // Extract unique departments for filter
-      if (response.budgets) {
+      if (response.budgets && response.budgets.length > 0) {
         const depts = [...new Set(response.budgets.map(b => b.department).filter(Boolean))];
         setDepartments(depts);
       }
@@ -81,17 +89,19 @@ const BudgetList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.status, filters.department, filters.search, filters.page]);
+
+  useEffect(() => {
+    fetchBudgets();
+  }, [fetchBudgets]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setFilters({ ...filters, page: 1 });
-    fetchBudgets();
+    setFilters(prev => ({ ...prev, page: 1 }));
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters({ ...filters, [key]: value, page: 1 });
-    setTimeout(() => fetchBudgets(), 100);
+    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
   };
 
   const handleDelete = async (budgetId) => {
@@ -124,6 +134,10 @@ const BudgetList = () => {
     }
   };
 
+  const handleRefresh = () => {
+    fetchBudgets();
+  };
+
   const getStatusBadge = (status) => {
     const styles = {
       'DRAFT': 'bg-gray-100 text-gray-800',
@@ -131,17 +145,18 @@ const BudgetList = () => {
       'APPROVED': 'bg-green-100 text-green-800',
       'REJECTED': 'bg-red-100 text-red-800'
     };
-    return styles[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStatusIcon = (status) => {
-    switch(status) {
-      case 'DRAFT': return <DocumentTextIcon className="h-4 w-4 text-gray-500" />;
-      case 'PENDING': return <ClockIcon className="h-4 w-4 text-yellow-500" />;
-      case 'APPROVED': return <CheckCircleIcon className="h-4 w-4 text-green-500" />;
-      case 'REJECTED': return <XCircleIcon className="h-4 w-4 text-red-500" />;
-      default: return null;
-    }
+    const icon = {
+      'DRAFT': <DocumentTextIcon className="h-3 w-3 mr-1" />,
+      'PENDING': <ClockIcon className="h-3 w-3 mr-1" />,
+      'APPROVED': <CheckCircleIcon className="h-3 w-3 mr-1" />,
+      'REJECTED': <XCircleIcon className="h-3 w-3 mr-1" />
+    };
+    return (
+      <span className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
+        {icon[status]}
+        {status}
+      </span>
+    );
   };
 
   if (loading && budgets.length === 0) {
@@ -149,46 +164,60 @@ const BudgetList = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Budget Management</h1>
-          <Link
-            to="/treasurer/budgets/create"
-            className="inline-flex items-center px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(27,158,76)]"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            New Budget
-          </Link>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Budget Management</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Create and manage departmental budgets
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 bg-white rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <ArrowPathIcon className="h-4 w-4 mr-2" />
+              Refresh
+            </button>
+            <Link
+              to="/treasurer/budgets/create"
+              className="inline-flex items-center px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-xl hover:bg-[rgb(25,142,69)] transition-colors shadow-sm"
+            >
+              <PlusIcon className="h-4 w-4 mr-2" />
+              New Budget
+            </Link>
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-            <p className="text-xs text-gray-500">Total</p>
-            <p className="text-xl font-bold text-gray-900">{stats.total}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <p className="text-xs text-gray-500">Total Budgets</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 border border-yellow-200">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-yellow-100">
             <p className="text-xs text-gray-500">Pending</p>
-            <p className="text-xl font-bold text-yellow-600">{stats.pending}</p>
+            <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 border border-green-200">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-green-100">
             <p className="text-xs text-gray-500">Approved</p>
-            <p className="text-xl font-bold text-green-600">{stats.approved}</p>
+            <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 border border-red-200">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-red-100">
             <p className="text-xs text-gray-500">Rejected</p>
-            <p className="text-xl font-bold text-red-600">{stats.rejected}</p>
+            <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4 border border-blue-200">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-blue-100">
             <p className="text-xs text-gray-500">Total Amount</p>
-            <p className="text-xl font-bold text-blue-600">{formatCurrency(stats.totalAmount)}</p>
+            <p className="text-2xl font-bold text-blue-600">{formatCurrency(stats.totalAmount)}</p>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-medium text-gray-700">Filters</h2>
             <button
@@ -202,18 +231,18 @@ const BudgetList = () => {
 
           <form onSubmit={handleSearch} className="flex gap-2 mb-4">
             <div className="flex-1 relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search budgets..."
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                className="pl-10 pr-4 py-2 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              className="px-4 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-colors"
             >
               Search
             </button>
@@ -226,7 +255,7 @@ const BudgetList = () => {
                 <select
                   value={filters.status}
                   onChange={(e) => handleFilterChange('status', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                 >
                   <option value="all">All Statuses</option>
                   <option value="DRAFT">Draft</option>
@@ -240,7 +269,7 @@ const BudgetList = () => {
                 <select
                   value={filters.department}
                   onChange={(e) => handleFilterChange('department', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
                 >
                   <option value="all">All Departments</option>
                   {departments.map(dept => (
@@ -255,57 +284,54 @@ const BudgetList = () => {
         {/* Budget List */}
         <div className="space-y-4">
           {budgets.length > 0 ? (
-            budgets.map((budget) => (
+            budgets.map((budget, index) => (
               <motion.div
                 key={budget.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                transition={{ delay: index * 0.05 }}
+                className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all cursor-pointer"
+                onClick={() => navigate(`/treasurer/budgets/${budget.id}`)}
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        {getStatusIcon(budget.status)}
+                      <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{budget.name}</h3>
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(budget.status)}`}>
-                          {budget.status}
-                        </span>
+                        {getStatusBadge(budget.status)}
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-3">
-                        <div>
+                        <div className="flex items-center gap-1">
                           <span className="text-gray-500">Department:</span>
-                          <span className="ml-2 font-medium">{budget.department}</span>
+                          <span className="font-medium text-gray-700">{budget.department}</span>
                         </div>
-                        <div>
+                        <div className="flex items-center gap-1">
                           <span className="text-gray-500">Fiscal Year:</span>
-                          <span className="ml-2 font-medium">{budget.fiscalYear}</span>
+                          <span className="font-medium text-gray-700">{budget.fiscalYear}</span>
                         </div>
-                        <div>
+                        <div className="flex items-center gap-1">
                           <span className="text-gray-500">Amount:</span>
-                          <span className="ml-2 font-medium text-green-600">
-                            {formatCurrency(budget.amount)}
-                          </span>
+                          <span className="font-bold text-green-600">{formatCurrency(budget.amount)}</span>
                         </div>
                       </div>
 
                       {budget.description && (
-                        <p className="text-sm text-gray-600 mb-2">{budget.description}</p>
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">{budget.description}</p>
                       )}
 
-                      <div className="flex items-center space-x-4 text-xs text-gray-400">
-                        <span>Created: {formatDate(budget.created_at)}</span>
+                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                        <span>Created: {formatDate(budget.createdAt || budget.created_at)}</span>
                         {budget.submittedDate && (
                           <span>Submitted: {formatDate(budget.submittedDate)}</span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex space-x-2 ml-4">
+                    <div className="flex space-x-1 ml-4" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => navigate(`/treasurer/budgets/${budget.id}`)}
-                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                        className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         title="View Details"
                       >
                         <EyeIcon className="h-5 w-5" />
@@ -314,8 +340,8 @@ const BudgetList = () => {
                       {budget.status === 'DRAFT' && (
                         <>
                           <button
-                            onClick={() => navigate(`/treasurer/budgets/${budget.id}/edit`)}
-                            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg"
+                            onClick={() => navigate(`/treasurer/budgets/edit/${budget.id}`)}
+                            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Edit"
                           >
                             <PencilIcon className="h-5 w-5" />
@@ -323,7 +349,7 @@ const BudgetList = () => {
                           <button
                             onClick={() => handleSubmit(budget.id)}
                             disabled={actionLoading[budget.id] === 'submit'}
-                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg"
+                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
                             title="Submit for Approval"
                           >
                             {actionLoading[budget.id] === 'submit' ? (
@@ -338,7 +364,7 @@ const BudgetList = () => {
                           <button
                             onClick={() => handleDelete(budget.id)}
                             disabled={actionLoading[budget.id] === 'delete'}
-                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg"
+                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                             title="Delete"
                           >
                             {actionLoading[budget.id] === 'delete' ? (
@@ -358,17 +384,17 @@ const BudgetList = () => {
               </motion.div>
             ))
           ) : (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center border border-gray-200">
+            <div className="bg-white rounded-xl shadow-sm p-12 text-center border border-gray-100">
               <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Budgets Found</h3>
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-500 mb-4 max-w-md mx-auto">
                 {filters.search || filters.status !== 'all' || filters.department !== 'all'
                   ? 'No budgets match your filters. Try adjusting your search criteria.'
                   : 'Get started by creating your first budget.'}
               </p>
               <Link
                 to="/treasurer/budgets/create"
-                className="inline-flex items-center px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(27,158,76)]"
+                className="inline-flex items-center px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-xl hover:bg-[rgb(25,142,69)] transition-colors"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Create Budget
@@ -379,31 +405,41 @@ const BudgetList = () => {
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="mt-6 flex justify-center space-x-2">
+          <div className="mt-6 flex justify-center gap-2">
             <button
-              onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
+              onClick={() => setFilters(prev => ({ ...prev, page: prev.page - 1 }))}
               disabled={filters.page === 1}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50"
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
             >
               Previous
             </button>
-            {[...Array(pagination.pages).keys()].map(i => i + 1).map(page => (
-              <button
-                key={page}
-                onClick={() => setFilters({ ...filters, page })}
-                className={`px-3 py-1 border rounded-md text-sm ${
-                  page === filters.page
-                    ? 'bg-[rgb(31,178,86)] text-white border-[rgb(31,178,86)]'
-                    : 'border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
+            {[...Array(Math.min(pagination.pages, 5)).keys()].map(i => {
+              let pageNum = i + 1;
+              if (pagination.pages > 5 && filters.page > 3) {
+                pageNum = filters.page - 2 + i;
+                if (pageNum > pagination.pages) return null;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setFilters(prev => ({ ...prev, page: pageNum }))}
+                  className={`px-3 py-1 border rounded-lg text-sm transition-colors ${
+                    pageNum === filters.page
+                      ? 'bg-[rgb(31,178,86)] text-white border-[rgb(31,178,86)]'
+                      : 'border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            {pagination.pages > 5 && filters.page < pagination.pages - 2 && (
+              <span className="px-3 py-1 text-gray-500">...</span>
+            )}
             <button
-              onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
+              onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
               disabled={filters.page === pagination.pages}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50"
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 transition-colors"
             >
               Next
             </button>
