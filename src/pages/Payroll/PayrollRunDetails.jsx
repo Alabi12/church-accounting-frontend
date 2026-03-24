@@ -1,4 +1,4 @@
-// src/pages/Payroll/PayrollRunDetails.jsx (continued)
+// src/pages/Payroll/PayrollRunDetails.jsx
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,11 +9,8 @@ import {
   DocumentTextIcon,
   CurrencyDollarIcon,
   UserGroupIcon,
-  CalendarIcon,
   PrinterIcon,
   EnvelopeIcon,
-  ArrowDownTrayIcon,
-  PencilSquareIcon,
   DocumentDuplicateIcon,
   CheckBadgeIcon,
 } from '@heroicons/react/24/outline';
@@ -32,7 +29,28 @@ function PayrollRunDetails() {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showPostDialog, setShowPostDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [activeTab, setActiveTab] = useState('summary'); // summary, employees, deductions
+  const [activeTab, setActiveTab] = useState('summary');
+
+  // Helper function to safely format currency
+  const formatCurrency = (amount) => {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+      return '₵0.00';
+    }
+    const num = parseFloat(amount);
+    if (isNaN(num)) return '₵0.00';
+    return new Intl.NumberFormat('en-GH', {
+      style: 'currency',
+      currency: 'GHS',
+      minimumFractionDigits: 2,
+    }).format(num);
+  };
+
+  // Helper to safely get number
+  const safeNumber = (value) => {
+    if (value === undefined || value === null) return 0;
+    const num = parseFloat(value);
+    return isNaN(num) ? 0 : num;
+  };
 
   // Fetch payroll run details
   const { data, isLoading, error, refetch } = useQuery({
@@ -47,7 +65,6 @@ function PayrollRunDetails() {
     enabled: !!id,
   });
 
-  // Approve mutation
   const approveMutation = useMutation({
     mutationFn: () => payrollService.approvePayroll(id),
     onSuccess: () => {
@@ -55,12 +72,9 @@ function PayrollRunDetails() {
       toast.success('Payroll run approved successfully');
       setShowApproveDialog(false);
     },
-    onError: (error) => {
-      toast.error('Failed to approve payroll run');
-    },
+    onError: () => toast.error('Failed to approve payroll run'),
   });
 
-  // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: () => payrollService.rejectPayroll(id, { reason: rejectionReason }),
     onSuccess: () => {
@@ -69,12 +83,9 @@ function PayrollRunDetails() {
       setShowRejectDialog(false);
       setRejectionReason('');
     },
-    onError: (error) => {
-      toast.error('Failed to reject payroll run');
-    },
+    onError: () => toast.error('Failed to reject payroll run'),
   });
 
-  // Post journal mutation
   const postMutation = useMutation({
     mutationFn: () => payrollService.postPayrollJournal(id),
     onSuccess: () => {
@@ -82,32 +93,22 @@ function PayrollRunDetails() {
       toast.success('Journal entries posted successfully');
       setShowPostDialog(false);
     },
-    onError: (error) => {
-      toast.error('Failed to post journal entries');
-    },
+    onError: () => toast.error('Failed to post journal entries'),
   });
 
-  // Generate payslips mutation
   const generatePayslipsMutation = useMutation({
     mutationFn: () => payrollService.generatePayslips(id),
     onSuccess: () => {
       queryClient.invalidateQueries(['payslips', 'run', id]);
       toast.success('Payslips generated successfully');
     },
-    onError: (error) => {
-      toast.error('Failed to generate payslips');
-    },
+    onError: () => toast.error('Failed to generate payslips'),
   });
 
-  // Email payslips mutation
   const emailPayslipsMutation = useMutation({
     mutationFn: () => payrollService.bulkEmailPayslips(id),
-    onSuccess: () => {
-      toast.success('Payslips emailed successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to email payslips');
-    },
+    onSuccess: () => toast.success('Payslips emailed successfully'),
+    onError: () => toast.error('Failed to email payslips'),
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -116,52 +117,63 @@ function PayrollRunDetails() {
   const run = data?.data;
   if (!run) return <ErrorAlert message="Payroll run not found" />;
 
+  // Calculate totals from items if available (for fallback)
+  const items = run.items || [];
+  
+  // Calculate totals from items if backend totals are missing
+  const calculatedTotals = items.reduce((acc, item) => {
+    acc.gross += safeNumber(item.gross_pay);
+    acc.tax += safeNumber(item.tax_amount);
+    acc.ssnit += safeNumber(item.pension_amount);
+    acc.deductions += safeNumber(item.other_deductions);
+    acc.net += safeNumber(item.net_pay);
+    return acc;
+  }, { gross: 0, tax: 0, ssnit: 0, deductions: 0, net: 0 });
+
+  // Use backend totals if available, otherwise use calculated totals
+  const totalGross = safeNumber(run.total_gross) || calculatedTotals.gross;
+  const totalTax = safeNumber(run.total_tax) || calculatedTotals.tax;
+  const totalDeductions = safeNumber(run.total_deductions) || (calculatedTotals.tax + calculatedTotals.ssnit + calculatedTotals.deductions);
+  const totalNet = safeNumber(run.total_net) || calculatedTotals.net;
+  const employeeCount = run.employee_count || items.length;
+
   const payslips = payslipsData?.data?.payslips || [];
   const generatedPayslipsCount = payslips.filter(p => p.pdf_generated_at).length;
   const emailedPayslipsCount = payslips.filter(p => p.emailed_at).length;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-GH', {
-      style: 'currency',
-      currency: 'GHS',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'dd MMM yyyy');
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy');
+    } catch {
+      return 'N/A';
+    }
   };
 
   const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A';
-    return format(new Date(dateString), 'dd MMM yyyy HH:mm');
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'draft':
-        return 'bg-gray-100 text-gray-800';
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'processing':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'paid':
-        return 'bg-blue-100 text-blue-800';
-      case 'posted':
-        return 'bg-purple-100 text-purple-800';
-      case 'void':
-        return 'bg-red-100 text-red-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+    try {
+      return format(new Date(dateString), 'dd MMM yyyy HH:mm');
+    } catch {
+      return 'N/A';
     }
   };
 
-  const canApprove = run.status === 'draft';
+  const getStatusColor = (status) => {
+    const statusMap = {
+      draft: 'bg-gray-100 text-gray-800',
+      initiated: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      processed: 'bg-blue-100 text-blue-800',
+      posted: 'bg-purple-100 text-purple-800',
+      rejected: 'bg-red-100 text-red-800',
+    };
+    return statusMap[status?.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  };
+
+  const canApprove = run.status === 'initiated' || run.status === 'draft';
   const canPost = run.status === 'approved';
-  const canGeneratePayslips = run.status === 'posted' || run.status === 'paid';
+  const canGeneratePayslips = run.status === 'processed' || run.status === 'posted';
   const canEmailPayslips = generatedPayslipsCount > 0;
 
   return (
@@ -182,7 +194,7 @@ function PayrollRunDetails() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(run.status)}`}>
-              {run.status}
+              {run.status?.toUpperCase() || 'DRAFT'}
             </span>
           </div>
         </div>
@@ -263,12 +275,8 @@ function PayrollRunDetails() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Employees
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900">
-                    {run.employee_count || 0}
-                  </dd>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Employees</dt>
+                  <dd className="text-lg font-medium text-gray-900">{employeeCount}</dd>
                 </dl>
               </div>
             </div>
@@ -283,12 +291,8 @@ function PayrollRunDetails() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Gross
-                  </dt>
-                  <dd className="text-lg font-medium text-gray-900">
-                    {formatCurrency(run.total_gross)}
-                  </dd>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Gross</dt>
+                  <dd className="text-lg font-medium text-gray-900">{formatCurrency(totalGross)}</dd>
                 </dl>
               </div>
             </div>
@@ -303,12 +307,8 @@ function PayrollRunDetails() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Deductions
-                  </dt>
-                  <dd className="text-lg font-medium text-red-600">
-                    {formatCurrency(run.total_deductions)}
-                  </dd>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Deductions</dt>
+                  <dd className="text-lg font-medium text-red-600">{formatCurrency(totalDeductions)}</dd>
                 </dl>
               </div>
             </div>
@@ -323,12 +323,8 @@ function PayrollRunDetails() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Net
-                  </dt>
-                  <dd className="text-lg font-medium text-[rgb(31,178,86)]">
-                    {formatCurrency(run.total_net)}
-                  </dd>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Total Net</dt>
+                  <dd className="text-lg font-medium text-[rgb(31,178,86)]">{formatCurrency(totalNet)}</dd>
                 </dl>
               </div>
             </div>
@@ -372,158 +368,67 @@ function PayrollRunDetails() {
         </nav>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content - Summary */}
       {activeTab === 'summary' && (
         <div className="bg-white shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              Payroll Summary
-            </h3>
+            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Payroll Summary</h3>
             
             <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Run Number</dt>
-                <dd className="mt-1 text-sm text-gray-900">{run.run_number}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Status</dt>
-                <dd className="mt-1">
-                  <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(run.status)}`}>
-                    {run.status}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Period Start</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(run.period_start)}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Period End</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(run.period_end)}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Payment Date</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDate(run.payment_date)}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Created By</dt>
-                <dd className="mt-1 text-sm text-gray-900">{run.created_by || 'System'}</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-gray-500">Created At</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formatDateTime(run.created_at)}</dd>
-              </div>
-              {run.approved_at && (
-                <>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Approved By</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{run.approved_by || 'N/A'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Approved At</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{formatDateTime(run.approved_at)}</dd>
-                  </div>
-                </>
-              )}
+              <div><dt className="text-sm font-medium text-gray-500">Run Number</dt><dd className="mt-1 text-sm text-gray-900">{run.run_number}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Status</dt><dd className="mt-1"><span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(run.status)}`}>{run.status}</span></dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Period Start</dt><dd className="mt-1 text-sm text-gray-900">{formatDate(run.period_start)}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Period End</dt><dd className="mt-1 text-sm text-gray-900">{formatDate(run.period_end)}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Payment Date</dt><dd className="mt-1 text-sm text-gray-900">{formatDate(run.payment_date)}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Total Gross</dt><dd className="mt-1 text-sm font-semibold text-gray-900">{formatCurrency(totalGross)}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Total Deductions</dt><dd className="mt-1 text-sm font-semibold text-red-600">{formatCurrency(totalDeductions)}</dd></div>
+              <div><dt className="text-sm font-medium text-gray-500">Total Net</dt><dd className="mt-1 text-sm font-semibold text-[rgb(31,178,86)]">{formatCurrency(totalNet)}</dd></div>
             </dl>
-
-            {run.journal_entry_id && (
-              <div className="mt-6 p-4 bg-green-50 rounded-lg">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <CheckCircleIcon className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">
-                      Journal Entry Posted
-                    </p>
-                    <p className="text-sm text-green-700 mt-1">
-                      Journal Entry ID: {run.journal_entry_id}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
 
+      {/* Tab Content - Employees */}
       {activeTab === 'employees' && (
         <div className="bg-white shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              Employee Payroll Details
-            </h3>
+            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Employee Payroll Details</h3>
             
             <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">
-                      Employee
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                      Gross Pay
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                      PAYE
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                      SSNIT
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                      Other Deductions
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                      Net Pay
-                    </th>
+                    <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Employee</th>
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Gross Pay</th>
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">PAYE</th>
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">SSNIT</th>
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Other Deductions</th>
+                    <th className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Net Pay</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {run.items?.map((item) => (
+                  {items.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm">
                         <div className="font-medium text-gray-900">{item.employee_name}</div>
-                        <div className="text-gray-500">{item.employee?.department || 'N/A'}</div>
+                        <div className="text-gray-500">{item.department || 'N/A'}</div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right font-medium">
-                        {formatCurrency(item.gross_pay)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">
-                        {formatCurrency(item.tax_amount)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">
-                        {formatCurrency(item.pension_amount || 0)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">
-                        {formatCurrency(item.other_deductions || 0)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right font-bold text-[rgb(31,178,86)]">
-                        {formatCurrency(item.net_pay)}
-                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right">{formatCurrency(item.gross_pay)}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">{formatCurrency(item.tax_amount)}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">{formatCurrency(item.pension_amount || 0)}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right text-red-600">{formatCurrency(item.other_deductions || 0)}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-right font-bold text-[rgb(31,178,86)]">{formatCurrency(item.net_pay)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-gray-50">
                   <tr>
-                    <th scope="row" colSpan="1" className="pt-4 pl-4 pr-3 text-sm font-semibold text-gray-900 text-left">
-                      Totals
-                    </th>
-                    <td className="pt-4 px-3 text-sm font-semibold text-right">
-                      {formatCurrency(run.total_gross)}
-                    </td>
-                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">
-                      {formatCurrency(run.total_tax)}
-                    </td>
-                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">
-                      {formatCurrency(run.total_deductions - run.total_tax)}
-                    </td>
-                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">
-                      {formatCurrency(0)}
-                    </td>
-                    <td className="pt-4 px-3 text-sm font-semibold text-right text-[rgb(31,178,86)]">
-                      {formatCurrency(run.total_net)}
-                    </td>
+                    <th className="pt-4 pl-4 pr-3 text-sm font-semibold text-gray-900 text-left">Totals</th>
+                    <td className="pt-4 px-3 text-sm font-semibold text-right">{formatCurrency(totalGross)}</td>
+                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">{formatCurrency(totalTax)}</td>
+                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">{formatCurrency(calculatedTotals.ssnit)}</td>
+                    <td className="pt-4 px-3 text-sm font-semibold text-right text-red-600">{formatCurrency(calculatedTotals.deductions)}</td>
+                    <td className="pt-4 px-3 text-sm font-semibold text-right text-[rgb(31,178,86)]">{formatCurrency(totalNet)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -532,95 +437,43 @@ function PayrollRunDetails() {
         </div>
       )}
 
+      {/* Tab Content - Payslips */}
       {activeTab === 'payslips' && (
         <div className="bg-white shadow sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="sm:flex sm:items-center">
               <div className="sm:flex-auto">
-                <h3 className="text-lg font-medium leading-6 text-gray-900">
-                  Payslips
-                </h3>
+                <h3 className="text-lg font-medium leading-6 text-gray-900">Payslips</h3>
                 <p className="mt-2 text-sm text-gray-700">
                   Generated: {generatedPayslipsCount} / {payslips.length} • Emailed: {emailedPayslipsCount}
                 </p>
               </div>
             </div>
-
             <div className="mt-6 overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">
-                      Employee
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Payslip Number
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Status
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Generated
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Emailed
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Viewed
-                    </th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4">
-                      <span className="sr-only">Actions</span>
-                    </th>
+                    <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Employee</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Payslip Number</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Generated</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Emailed</th>
+                    <th className="relative py-3.5 pl-3 pr-4"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {payslips.map((payslip) => (
-                    <tr key={payslip.id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">
-                        {payslip.employee?.name || 'N/A'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {payslip.payslip_number}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        {payslip.pdf_generated_at ? (
-                          <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">
-                            Generated
-                          </span>
-                        ) : (
-                          <span className="inline-flex rounded-full bg-gray-100 px-2 text-xs font-semibold leading-5 text-gray-800">
-                            Pending
-                          </span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {payslip.pdf_generated_at ? formatDateTime(payslip.pdf_generated_at) : '-'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {payslip.emailed_at ? formatDateTime(payslip.emailed_at) : '-'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {payslip.viewed_by_employee ? 'Yes' : 'No'}
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                    <tr key={payslip.id}>
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">{payslip.employee?.name || 'N/A'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{payslip.payslip_number}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{payslip.pdf_generated_at ? formatDateTime(payslip.pdf_generated_at) : '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{payslip.emailed_at ? formatDateTime(payslip.emailed_at) : '-'}</td>
+                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right">
                         {payslip.pdf_generated_at && (
-                          <button
-                            onClick={() => navigate(`/payroll/payslips/${payslip.id}`)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            View
-                          </button>
+                          <button onClick={() => navigate(`/payroll/payslips/${payslip.id}`)} className="text-indigo-600 hover:text-indigo-900">View</button>
                         )}
                       </td>
                     </tr>
                   ))}
-                  {payslips.length === 0 && (
-                    <tr>
-                      <td colSpan="7" className="text-center py-12 text-gray-500">
-                        No payslips generated yet.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -628,55 +481,10 @@ function PayrollRunDetails() {
         </div>
       )}
 
-      {/* Approval Dialog */}
-      <ConfirmDialog
-        isOpen={showApproveDialog}
-        onClose={() => setShowApproveDialog(false)}
-        onConfirm={() => approveMutation.mutate()}
-        title="Approve Payroll Run"
-        message={`Are you sure you want to approve payroll run ${run.run_number}? This will lock the payroll for further changes.`}
-        confirmText="Approve"
-        cancelText="Cancel"
-        type="success"
-      />
-
-      {/* Reject Dialog */}
-      <ConfirmDialog
-        isOpen={showRejectDialog}
-        onClose={() => {
-          setShowRejectDialog(false);
-          setRejectionReason('');
-        }}
-        onConfirm={() => rejectMutation.mutate()}
-        title="Reject Payroll Run"
-        message={
-          <div>
-            <p className="mb-3">Are you sure you want to reject this payroll run?</p>
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Please provide a reason for rejection..."
-              className="w-full rounded-md border-0 py-2 px-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-red-600 sm:text-sm"
-              rows="3"
-            />
-          </div>
-        }
-        confirmText="Reject"
-        cancelText="Cancel"
-        type="danger"
-      />
-
-      {/* Post Journal Dialog */}
-      <ConfirmDialog
-        isOpen={showPostDialog}
-        onClose={() => setShowPostDialog(false)}
-        onConfirm={() => postMutation.mutate()}
-        title="Post Journal Entries"
-        message="This will create journal entries for this payroll run. This action cannot be undone. Continue?"
-        confirmText="Post"
-        cancelText="Cancel"
-        type="info"
-      />
+      {/* Dialogs */}
+      <ConfirmDialog isOpen={showApproveDialog} onClose={() => setShowApproveDialog(false)} onConfirm={() => approveMutation.mutate()} title="Approve Payroll Run" message={`Are you sure you want to approve payroll run ${run.run_number}?`} confirmText="Approve" cancelText="Cancel" type="success" />
+      <ConfirmDialog isOpen={showRejectDialog} onClose={() => { setShowRejectDialog(false); setRejectionReason(''); }} onConfirm={() => rejectMutation.mutate()} title="Reject Payroll Run" message={<div><p className="mb-3">Reason for rejection:</p><textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Please provide a reason..." className="w-full rounded-md border-0 py-2 px-3 ring-1 ring-inset ring-gray-300" rows="3" /></div>} confirmText="Reject" cancelText="Cancel" type="danger" />
+      <ConfirmDialog isOpen={showPostDialog} onClose={() => setShowPostDialog(false)} onConfirm={() => postMutation.mutate()} title="Post Journal Entries" message="This will create journal entries for this payroll run. Continue?" confirmText="Post" cancelText="Cancel" type="info" />
     </div>
   );
 }

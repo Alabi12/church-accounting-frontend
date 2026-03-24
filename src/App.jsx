@@ -96,7 +96,7 @@ import FinancialOverview from './pages/Treasurer/FinancialOverview';
 import BudgetList from './pages/Treasurer/BudgetList';
 import BudgetForm from './pages/Treasurer/BudgetForm';
 import BudgetDetail from './pages/Treasurer/BudgetDetail';
-import BudgetVarianceReport from './pages/Treasurer/BudgetVarianceReport'; // <-- ADD THIS IMPORT
+import BudgetVarianceReport from './pages/Treasurer/BudgetVarianceReport';
 
 // Finance Committee Pages
 import CommitteeDashboard from './pages/FinanceCommittee/CommitteeDashboard';
@@ -127,6 +127,16 @@ import DeductionTypes from './pages/Payroll/DeductionTypes';
 import DeductionTypeForm from './pages/Payroll/DeductionTypeForm';
 import TaxTables from './pages/Payroll/TaxTables';
 import TaxTableForm from './pages/Payroll/TaxTableForm';
+
+// ========== NEW PAYROLL WORKFLOW PAGES ==========
+import InitiatePayroll from './pages/Payroll/InitiatePayroll';
+import CreatePayroll from './pages/Payroll/CreatePayroll';
+import PendingApproval from './pages/Payroll/PendingApproval';
+import ReviewPayroll from './pages/Payroll/ReviewPayroll';
+import ApprovePayroll from './pages/Payroll/ApprovePayroll';
+import PostToJournal from './pages/Payroll/PostToJournal';
+import GeneratePayslips from './pages/Payroll/GeneratePayslips';
+import EmailPayslips from './pages/Payroll/EmailPayslips';
 
 // ========== LEAVE PAGES ==========
 import LeaveRequests from './pages/Leave/LeaveRequests';
@@ -339,6 +349,56 @@ function App() {
                                   <Route path="dashboard" element={
                                     <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
                                       <PayrollDashboard />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
+                                  {/* STEP 1: Admin Initiate */}
+                                  <Route path="initiate" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}>
+                                      <InitiatePayroll />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
+                                  {/* STEP 2: Accountant Create */}
+                                  <Route path="create" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                      <CreatePayroll />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
+                                  {/* STEP 3: Treasurer Review & Approve */}
+                                  <Route path="pending-approval" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
+                                      <PendingApproval />
+                                    </RoleBasedRoute>
+                                  } />
+                                  <Route path="review/:id" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
+                                      <ReviewPayroll />
+                                    </RoleBasedRoute>
+                                  } />
+                                  <Route path="approve/:id" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
+                                      <ApprovePayroll />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
+                                  {/* STEP 4: Accountant Post */}
+                                  <Route path="post-journal" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                      <PostToJournal />
+                                    </RoleBasedRoute>
+                                  } />
+                                  
+                                  {/* Generate & Email Payslips */}
+                                  <Route path="generate-payslips" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                      <GeneratePayslips />
+                                    </RoleBasedRoute>
+                                  } />
+                                  <Route path="email-payslips" element={
+                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
+                                      <EmailPayslips />
                                     </RoleBasedRoute>
                                   } />
                                   

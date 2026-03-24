@@ -8,15 +8,25 @@ export const payrollService = {
   createEmployee: (data) => api.post('/payroll/employees', data),
   updateEmployee: (id, data) => api.put(`/payroll/employees/${id}`, data),
   deleteEmployee: (id) => api.delete(`/payroll/employees/${id}`),
+  getPayrollRuns: (params) => api.get('/payroll/runs', { params }),
+  getPayrollRun: (id) => api.get(`/payroll/runs/${id}`),
+  initiatePayrollRun: (data) => api.post('/payroll/runs/initiate', data),
+  calculatePayroll: (data) => api.post('/payroll/calculate', data),
+  approvePayroll: (id) => api.post(`/payroll/${id}/approve`),
+  rejectPayroll: (id, data) => api.post(`/payroll/${id}/reject`, data),
+  postPayrollJournal: (id) => api.post(`/payroll/${id}/post`),
+  generatePayslips: (runId) => api.post(`/payslip/generate/${runId}`),
+  bulkEmailPayslips: (runId) => api.post(`/payslip/bulk-email/${runId}`),
+  getPayrollRunPayslips: (runId) => api.get(`/payslip/run/${runId}`),
 
   // Payroll processing
-  calculatePayroll: (data) => api.post('/payroll/calculate', data),
-  processPayroll: (data) => api.post('/payroll/process', data),
-  getPayrollRuns: (params) => api.get('/payroll/payroll/runs', { params }),
-  getPayrollRun: (id) => api.get(`/payroll/payroll/${id}`),
-  approvePayroll: (id) => api.post(`/payroll/payroll/${id}/approve`),
-  rejectPayroll: (id, data) => api.post(`/payroll/payroll/${id}/reject`, data),
-  postPayrollJournal: (id) => api.post(`/payroll/payroll/${id}/post`),
+calculatePayroll: (data) => api.post('/payroll/calculate', data),
+processPayroll: (data) => api.post('/payroll/process', data),
+getPayrollRuns: (params) => api.get('/payroll/runs', { params }),
+getPayrollRun: (id) => api.get(`/payroll/runs/${id}`),  // Changed: added 'runs/'
+approvePayroll: (id) => api.post(`/payroll/${id}/approve`),  // Changed
+rejectPayroll: (id, data) => api.post(`/payroll/${id}/reject`, data),  // Changed
+postPayrollJournal: (id) => api.post(`/payroll/${id}/post`),  // Changed
 
   // Payslip endpoints
   generatePayslips: (runId) => api.post(`/payslip/generate/${runId}`),
