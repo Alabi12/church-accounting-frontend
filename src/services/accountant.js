@@ -1,3 +1,4 @@
+// services/accountant.js
 import api from './api';
 
 export const accountantService = {
@@ -44,51 +45,50 @@ export const accountantService = {
     }
   },
 
-  // Add these to your accountantService object
+  // ==================== ACCOUNT METHODS ====================
+  createAccount: async (data) => {
+    try {
+      console.log('📊 Creating account...', data);
+      const response = await api.post('/accounting/accounts', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating account:', error);
+      throw error;
+    }
+  },
 
-createAccount: async (data) => {
-  try {
-    console.log('📊 Creating account...', data);
-    const response = await api.post('/accounting/accounts', data);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating account:', error);
-    throw error;
-  }
-},
+  updateAccount: async (id, data) => {
+    try {
+      console.log(`📊 Updating account ${id}...`, data);
+      const response = await api.put(`/accounting/accounts/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating account:', error);
+      throw error;
+    }
+  },
 
-updateAccount: async (id, data) => {
-  try {
-    console.log(`📊 Updating account ${id}...`, data);
-    const response = await api.put(`/accounting/accounts/${id}`, data);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating account:', error);
-    throw error;
-  }
-},
+  deleteAccount: async (id) => {
+    try {
+      console.log(`📊 Deleting account ${id}...`);
+      const response = await api.delete(`/accounting/accounts/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      throw error;
+    }
+  },
 
-deleteAccount: async (id) => {
-  try {
-    console.log(`📊 Deleting account ${id}...`);
-    const response = await api.delete(`/accounting/accounts/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error deleting account:', error);
-    throw error;
-  }
-},
-
-toggleAccountStatus: async (id, isActive) => {
-  try {
-    console.log(`📊 Toggling account ${id} status to ${isActive}...`);
-    const response = await api.put(`/accounting/accounts/${id}/status`, { isActive });
-    return response.data;
-  } catch (error) {
-    console.error('Error toggling account status:', error);
-    throw error;
-  }
-},
+  toggleAccountStatus: async (id, isActive) => {
+    try {
+      console.log(`📊 Toggling account ${id} status to ${isActive}...`);
+      const response = await api.put(`/accounting/accounts/${id}/status`, { isActive });
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling account status:', error);
+      throw error;
+    }
+  },
 
   getAccountBalances: async () => {
     try {
@@ -113,142 +113,93 @@ toggleAccountStatus: async (id, isActive) => {
   },
 
   // ==================== JOURNAL ENTRY METHODS ====================
-// In accountant.js, update the getJournalEntries method:
-getJournalEntries: async (params = {}) => {
-  try {
-    console.log('📝 Fetching journal entries with params:', params);
-    const queryParams = new URLSearchParams();
-    
-    if (params.page) queryParams.append('page', params.page);
-    if (params.perPage) queryParams.append('perPage', params.perPage);
-    if (params.startDate) queryParams.append('start_date', params.startDate); // Note: snake_case
-    if (params.endDate) queryParams.append('end_date', params.endDate);       // Note: snake_case
-    if (params.status) queryParams.append('status', params.status);
-    if (params.search) queryParams.append('search', params.search);
-    
-    // Use the correct route with underscore
-    const response = await api.get(`/journal_entries?${queryParams.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching journal entries:', error);
-    throw error;
-  }
-},
-
-// Update createJournalEntry:
-// In accountant.js
-createJournalEntry: async (data) => {
-  try {
-    const payload = {
-      entry_date: data.entry_date,
-      description: data.description,
-      reference: data.reference || '',
-      notes: data.notes || '',
-      lines: data.lines.map(line => ({
-        account_id: line.account_id,
-        debit: parseFloat(line.debit) || 0,
-        credit: parseFloat(line.credit) || 0,
-        description: line.description || ''
-      })),
-      submit_for_approval: data.submit_for_approval || false
-    };
-    
-    console.log('📤 Creating journal entry with payload:', JSON.stringify(payload, null, 2));
-    
-    // Make sure the URL matches your backend route
-    const response = await api.post('/journal_entries', payload);
-    return response.data;
-  } catch (error) {
-    console.error('Error creating journal entry:', error);
-    if (error.response) {
-      console.error('Error response:', error.response.data);
+  getJournalEntries: async (params = {}) => {
+    try {
+      console.log('📝 Fetching journal entries with params:', params);
+      const queryParams = new URLSearchParams();
+      
+      if (params.page) queryParams.append('page', params.page);
+      if (params.perPage) queryParams.append('perPage', params.perPage);
+      if (params.startDate) queryParams.append('start_date', params.startDate);
+      if (params.endDate) queryParams.append('end_date', params.endDate);
+      if (params.status) queryParams.append('status', params.status);
+      if (params.search) queryParams.append('search', params.search);
+      
+      const response = await api.get(`/journal_entries?${queryParams.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching journal entries:', error);
+      throw error;
     }
-    throw error;
-  }
-},
+  },
 
-// In accountant.js - add this method to your accountantService object
-
-getJournalEntry: async (id) => {
-  try {
-    console.log(`📥 Fetching journal entry ${id} from accountantService...`);
-    
-    // Try to get the journal entry
-    const response = await api.get(`/journal_entries/${id}`);
-    console.log('📦 Journal entry response:', response.data);
-    
-    return response.data;
-  } catch (error) {
-    console.error('❌ Error fetching journal entry:', error);
-    if (error.response) {
-      console.error('Error status:', error.response.status);
-      console.error('Error data:', error.response.data);
+  createJournalEntry: async (data) => {
+    try {
+      const payload = {
+        entry_date: data.entry_date,
+        description: data.description,
+        reference: data.reference || '',
+        notes: data.notes || '',
+        lines: data.lines.map(line => ({
+          account_id: line.account_id,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+          description: line.description || ''
+        })),
+        submit_for_approval: data.submit_for_approval || false
+      };
+      
+      console.log('📤 Creating journal entry with payload:', JSON.stringify(payload, null, 2));
+      const response = await api.post('/journal_entries', payload);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating journal entry:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+      }
+      throw error;
     }
-    throw error;
-  }
-},
+  },
 
-// Update updateJournalEntry:
-updateJournalEntry: async (id, data) => {
-  try {
-    const payload = {
-      entry_date: data.entry_date,
-      description: data.description,
-      reference: data.reference || '',
-      notes: data.notes || '',
-      lines: data.lines.map(line => ({
-        account_id: line.account_id,
-        debit: parseFloat(line.debit) || 0,
-        credit: parseFloat(line.credit) || 0,
-        description: line.description || ''
-      })),
-      submit_for_approval: data.submitForApproval || false
-    };
-    
-    console.log(`📤 Updating journal entry ${id}:`, payload);
-    const response = await api.put(`/journal_entries/${id}`, payload);
-    return response.data;
-  } catch (error) {
-    console.error('Error updating journal entry:', error);
-    throw error;
-  }
-},
+  getJournalEntry: async (id) => {
+    try {
+      console.log(`📥 Fetching journal entry ${id}...`);
+      const response = await api.get(`/journal_entries/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching journal entry:', error);
+      if (error.response) {
+        console.error('Error status:', error.response.status);
+        console.error('Error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
 
-// Update postJournalEntry:
-postJournalEntry: async (id) => {
-  try {
-    console.log(`📝 Posting journal entry ${id}...`);
-    const response = await api.post(`/journal_entries/${id}/post`);
-    return response.data;
-  } catch (error) {
-    console.error('Error posting journal entry:', error);
-    throw error;
-  }
-},
-
-// Update voidJournalEntry:
-voidJournalEntry: async (id, reason) => {
-  try {
-    console.log(`📝 Voiding journal entry ${id}...`);
-    const response = await api.post(`/journal_entries/${id}/void`, { reason });
-    return response.data;
-  } catch (error) {
-    console.error('Error voiding journal entry:', error);
-    throw error;
-  }
-},
-
-// Update deleteJournalEntry:
-deleteJournalEntry: async (id) => {
-  try {
-    console.log(`📝 Deleting journal entry ${id}...`);
-    const response = await api.delete(`/journal_entries/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error deleting journal entry:', error);
-    throw error;
-  }
-},
+  updateJournalEntry: async (id, data) => {
+    try {
+      const payload = {
+        entry_date: data.entry_date,
+        description: data.description,
+        reference: data.reference || '',
+        notes: data.notes || '',
+        lines: data.lines.map(line => ({
+          account_id: line.account_id,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+          description: line.description || ''
+        })),
+        submit_for_approval: data.submitForApproval || false
+      };
+      
+      console.log(`📤 Updating journal entry ${id}:`, payload);
+      const response = await api.put(`/journal_entries/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating journal entry:', error);
+      throw error;
+    }
+  },
 
   postJournalEntry: async (id) => {
     try {
@@ -272,6 +223,17 @@ deleteJournalEntry: async (id) => {
     }
   },
 
+  deleteJournalEntry: async (id) => {
+    try {
+      console.log(`📝 Deleting journal entry ${id}...`);
+      const response = await api.delete(`/journal_entries/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting journal entry:', error);
+      throw error;
+    }
+  },
+
   // ==================== CHART OF ACCOUNTS METHODS ====================
   getChartOfAccounts: async () => {
     try {
@@ -284,7 +246,6 @@ deleteJournalEntry: async (id) => {
     }
   },
 
-  // ==================== ACCOUNT METHODS ====================
   getAccounts: async (params = {}) => {
     try {
       console.log('📊 Fetching accounts with params:', params);
@@ -350,96 +311,74 @@ deleteJournalEntry: async (id) => {
     }
   },
 
-
-getTrialBalance: async (asAt = null) => {
-  try {
-    console.log('⚖️ Fetching trial balance...');
-    const params = new URLSearchParams();
-    if (asAt) {
-      params.append('asAt', asAt);
+  // ==================== FINANCIAL STATEMENTS ====================
+  getIncomeStatement: async (startDate, endDate) => {
+    try {
+      console.log('📊 Fetching income statement...');
+      const params = new URLSearchParams({
+        type: 'income',
+        startDate,
+        endDate
+      });
+      
+      const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching income statement:', error);
+      throw error;
     }
-    
-    const response = await api.get(`/accounting/trial-balance?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching trial balance:', error);
-    throw error;
-  }
-},
+  },
 
+  getBalanceSheet: async (asAt) => {
+    try {
+      console.log('📊 Fetching balance sheet...');
+      const params = new URLSearchParams({
+        type: 'balance',
+        endDate: asAt
+      });
+      
+      const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching balance sheet:', error);
+      throw error;
+    }
+  },
 
-getIncomeStatement: async (startDate, endDate) => {
-  try {
-    console.log('📊 Fetching income statement...');
-    const params = new URLSearchParams({
-      type: 'income',
-      startDate,
-      endDate
-    });
-    
-    // Add /accounting to the path
-    const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching income statement:', error);
-    throw error;
-  }
-},
+  getReceiptPaymentAccount: async (startDate, endDate) => {
+    try {
+      console.log('💰 Fetching receipt & payment account...');
+      const params = new URLSearchParams({
+        type: 'receipt-payment',
+        startDate,
+        endDate
+      });
+      
+      const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching receipt & payment account:', error);
+      throw error;
+    }
+  },
 
-getBalanceSheet: async (asAt) => {
-  try {
-    console.log('📊 Fetching balance sheet...');
-    const params = new URLSearchParams({
-      type: 'balance',
-      endDate: asAt
-    });
-    
-    // Add /accounting to the path
-    const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching balance sheet:', error);
-    throw error;
-  }
-},
+  getCashFlowStatement: async (startDate, endDate) => {
+    try {
+      console.log('💵 Fetching cash flow statement...');
+      const params = new URLSearchParams({
+        type: 'cashflow',
+        startDate,
+        endDate
+      });
+      
+      const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching cash flow statement:', error);
+      throw error;
+    }
+  },
 
-getReceiptPaymentAccount: async (startDate, endDate) => {
-  try {
-    console.log('💰 Fetching receipt & payment account...');
-    const params = new URLSearchParams({
-      type: 'receipt-payment',
-      startDate,
-      endDate
-    });
-    
-    // Add /accounting to the path
-    const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching receipt & payment account:', error);
-    throw error;
-  }
-},
-
-getCashFlowStatement: async (startDate, endDate) => {
-  try {
-    console.log('💵 Fetching cash flow statement...');
-    const params = new URLSearchParams({
-      type: 'cashflow',
-      startDate,
-      endDate
-    });
-    
-    // Add /accounting to the path
-    const response = await api.get(`/accounting/financial-statements?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching cash flow statement:', error);
-    throw error;
-  }
-},
-
-// Add to accountantService
   getFinancialStatementsWithBudget: async (startDate, endDate) => {
     try {
       const response = await api.get('/accounting/financial-statements-with-budget', {
@@ -452,85 +391,160 @@ getCashFlowStatement: async (startDate, endDate) => {
     }
   },
 
+  // ==================== BUDGET METHODS ====================
   getBudgetVariance: async (params = {}) => {
-    const response = await api.get('/treasurer/budget-variance', { params });
-    return response.data;
+    try {
+      const response = await api.get('/treasurer/budget-variance', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching budget variance:', error);
+      throw error;
+    }
   },
   
   exportBudgetVariance: async (params = {}, format = 'csv') => {
-    const response = await api.get('/treasurer/budget-variance/export', { 
-      params: { ...params, format },
-      responseType: 'blob'
-    });
-    return response.data;
+    try {
+      const response = await api.get('/treasurer/budget-variance/export', { 
+        params: { ...params, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting budget variance:', error);
+      throw error;
+    }
   },
 
-// ==================== RECONCILIATION METHODS ====================
-getReconciliationData: async (params) => {
-  try {
-    console.log('🔄 Fetching reconciliation data...', params);
-    const queryParams = new URLSearchParams();
-    queryParams.append('accountId', params.accountId);
-    if (params.asOf) queryParams.append('asOf', params.asOf);
-    
-    const response = await api.get(`/accounting/reconciliation?${queryParams.toString()}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching reconciliation data:', error);
-    throw error;
-  }
-},
+  // ==================== EXPORT METHODS ====================
+  exportIncomeStatement: async (startDate, endDate, format = 'csv') => {
+    try {
+      console.log(`📊 Exporting income statement as ${format}...`);
+      const response = await api.get('/accounting/financial-statements/export', {
+        params: { type: 'income', startDate, endDate, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting income statement:', error);
+      throw error;
+    }
+  },
 
-reconcileTransaction: async (transactionId) => {
-  try {
-    console.log(`✅ Reconciling transaction ${transactionId}...`);
-    const response = await api.post(`/accounting/reconciliation/${transactionId}/reconcile`);
-    return response.data;
-  } catch (error) {
-    console.error('Error reconciling transaction:', error);
-    throw error;
-  }
-},
+  exportBalanceSheet: async (asAt, format = 'csv') => {
+    try {
+      console.log(`📊 Exporting balance sheet as ${format}...`);
+      const response = await api.get('/accounting/export/balance-sheet', {
+        params: { asAt, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting balance sheet:', error);
+      throw error;
+    }
+  },
 
-unreconcileTransaction: async (transactionId) => {
-  try {
-    console.log(`↩️ Unreconciling transaction ${transactionId}...`);
-    const response = await api.post(`/accounting/reconciliation/${transactionId}/unreconcile`);
-    return response.data;
-  } catch (error) {
-    console.error('Error unreconciling transaction:', error);
-    throw error;
-  }
-},
+  exportTrialBalance: async (asAt, format = 'csv') => {
+    try {
+      console.log(`⚖️ Exporting trial balance as ${format}...`);
+      const response = await api.get('/accounting/export/trial-balance', {
+        params: { asAt, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting trial balance:', error);
+      throw error;
+    }
+  },
 
-// ==================== BANK ACCOUNTS FOR RECONCILIATION ====================
-getBankAccounts: async () => {
-  try {
-    console.log('🏦 Fetching bank accounts...');
-    const response = await api.get('/accounting/bank-accounts');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching bank accounts:', error);
-    return { accounts: [] };
-  }
-},
+  exportReceiptPayment: async (startDate, endDate, format = 'csv') => {
+    try {
+      console.log(`💰 Exporting receipt & payment as ${format}...`);
+      const response = await api.get('/accounting/financial-statements/export', {
+        params: { type: 'receipt-payment', startDate, endDate, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting receipt & payment:', error);
+      throw error;
+    }
+  },
 
-// ==================== PETTY CASH ACCOUNTS FOR RECONCILIATION ====================
-getPettyCashAccounts: async () => {
-  try {
-    console.log('💰 Fetching petty cash accounts...');
-    // You can reuse the bank accounts endpoint or create a new one
-    // For now, we'll use the same endpoint and filter in the frontend if needed
-    const response = await api.get('/accounting/bank-accounts');
-    
-    // You can also filter to show only cash accounts (code 1010)
-    // or create a separate endpoint on the backend
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching petty cash accounts:', error);
-    return { accounts: [] };
-  }
-},
+  exportCashFlow: async (startDate, endDate, format = 'csv') => {
+    try {
+      console.log(`💵 Exporting cash flow as ${format}...`);
+      const response = await api.get('/accounting/financial-statements/export', {
+        params: { type: 'cashflow', startDate, endDate, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting cash flow:', error);
+      throw error;
+    }
+  },
+
+  // ==================== RECONCILIATION METHODS ====================
+  getReconciliationData: async (params) => {
+    try {
+      console.log('🔄 Fetching reconciliation data...', params);
+      const queryParams = new URLSearchParams();
+      queryParams.append('accountId', params.accountId);
+      if (params.asOf) queryParams.append('asOf', params.asOf);
+      
+      const response = await api.get(`/accounting/reconciliation?${queryParams.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching reconciliation data:', error);
+      throw error;
+    }
+  },
+
+  reconcileTransaction: async (transactionId) => {
+    try {
+      console.log(`✅ Reconciling transaction ${transactionId}...`);
+      const response = await api.post(`/accounting/reconciliation/${transactionId}/reconcile`);
+      return response.data;
+    } catch (error) {
+      console.error('Error reconciling transaction:', error);
+      throw error;
+    }
+  },
+
+  unreconcileTransaction: async (transactionId) => {
+    try {
+      console.log(`↩️ Unreconciling transaction ${transactionId}...`);
+      const response = await api.post(`/accounting/reconciliation/${transactionId}/unreconcile`);
+      return response.data;
+    } catch (error) {
+      console.error('Error unreconciling transaction:', error);
+      throw error;
+    }
+  },
+
+  getBankAccounts: async () => {
+    try {
+      console.log('🏦 Fetching bank accounts...');
+      const response = await api.get('/accounting/bank-accounts');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+      return { accounts: [] };
+    }
+  },
+
+  getPettyCashAccounts: async () => {
+    try {
+      console.log('💰 Fetching petty cash accounts...');
+      const response = await api.get('/accounting/bank-accounts');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching petty cash accounts:', error);
+      return { accounts: [] };
+    }
+  },
 
   // ==================== UTILITY METHODS ====================
   getAccountTypes: () => {
@@ -604,3 +618,5 @@ getPettyCashAccounts: async () => {
     };
   }
 };
+
+export default accountantService;
