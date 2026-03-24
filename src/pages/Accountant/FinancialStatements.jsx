@@ -23,6 +23,7 @@ import toast from 'react-hot-toast';
 
 const FinancialStatements = () => {
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [activeStatement, setActiveStatement] = useState('incomeStatement');
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
@@ -58,7 +59,6 @@ const FinancialStatements = () => {
           break;
         case 'incomeStatement':
           data = await accountantService.getIncomeStatement(dateRange.startDate, dateRange.endDate);
-          // Fetch budget comparison separately
           await fetchBudgetComparison();
           break;
         case 'balanceSheet':
@@ -92,7 +92,6 @@ const FinancialStatements = () => {
         dateRange.startDate, 
         dateRange.endDate
       );
-      console.log('📊 Budget comparison data:', data);
       setBudgetComparison(data.budget_comparison);
     } catch (error) {
       console.warn('Could not fetch budget comparison:', error);
@@ -103,39 +102,84 @@ const FinancialStatements = () => {
   };
 
   const handleExport = async (format = 'csv') => {
+    if (!statementData) {
+      toast.error('No data to export');
+      return;
+    }
+    
     try {
-      let url;
+      setExporting(true);
+      
+      let response;
+      let fileName;
+      
       switch (activeStatement) {
         case 'incomeStatement':
-          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=income&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          response = await accountantService.exportIncomeStatement(
+            dateRange.startDate, 
+            dateRange.endDate, 
+            format
+          );
+          fileName = `income_statement_${dateRange.startDate}_to_${dateRange.endDate}.${format}`;
           break;
         case 'balanceSheet':
-          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=balance&endDate=${dateRange.asAt}&format=${format}`;
+          response = await accountantService.exportBalanceSheet(
+            dateRange.asAt, 
+            format
+          );
+          fileName = `balance_sheet_as_at_${dateRange.asAt}.${format}`;
+          break;
+        case 'trialBalance':
+          response = await accountantService.exportTrialBalance(
+            dateRange.asAt, 
+            format
+          );
+          fileName = `trial_balance_as_at_${dateRange.asAt}.${format}`;
           break;
         case 'receiptPayment':
-          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=receipt-payment&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          response = await accountantService.exportReceiptPayment(
+            dateRange.startDate, 
+            dateRange.endDate, 
+            format
+          );
+          fileName = `receipt_payment_${dateRange.startDate}_to_${dateRange.endDate}.${format}`;
           break;
         case 'cashFlow':
-          url = `${process.env.REACT_APP_API_URL}/accounting/financial-statements/export?type=cashflow&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&format=${format}`;
+          response = await accountantService.exportCashFlow(
+            dateRange.startDate, 
+            dateRange.endDate, 
+            format
+          );
+          fileName = `cash_flow_${dateRange.startDate}_to_${dateRange.endDate}.${format}`;
           break;
         default:
-          toast.info('Export not available for this statement');
+          toast('Export not available for this statement');
+          setExporting(false);
           return;
       }
       
-      window.open(url, '_blank');
-      toast.success(`Exporting as ${format.toUpperCase()}`);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Exported as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export statement');
+    } finally {
+      setExporting(false);
     }
   };
 
-  // Budget Variance Card Component
   const BudgetVarianceCard = () => {
     if (!budgetComparison) {
       return (
-        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 text-center">
+        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 text-center mb-8">
           <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
           <p className="text-gray-500">No budget data available for this period</p>
           <p className="text-xs text-gray-400 mt-1">Please ensure budgets are created and approved</p>
@@ -156,7 +200,6 @@ const FinancialStatements = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Revenue Card */}
           <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
@@ -169,7 +212,6 @@ const FinancialStatements = () => {
                 <XCircleIcon className="h-5 w-5 text-red-500" />
               )}
             </div>
-            
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Budgeted</p>
@@ -191,17 +233,10 @@ const FinancialStatements = () => {
                     </p>
                   </div>
                 </div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${revenue.favorable ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(Math.abs(revenue.variance_percentage), 100)}%` }}
-                  />
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Expenses Card */}
           <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
@@ -214,7 +249,6 @@ const FinancialStatements = () => {
                 <XCircleIcon className="h-5 w-5 text-red-500" />
               )}
             </div>
-            
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Budgeted</p>
@@ -236,22 +270,10 @@ const FinancialStatements = () => {
                     </p>
                   </div>
                 </div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${expenses.favorable ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(Math.abs(expenses.variance_percentage), 100)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {expenses.favorable 
-                    ? `✓ ${formatCurrency(Math.abs(expenses.variance))} under budget` 
-                    : `✗ ${formatCurrency(Math.abs(expenses.variance))} over budget`}
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Net Surplus/Deficit Card */}
           <div className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-shadow ${
             net.favorable ? 'border-green-200' : 'border-red-200'
           }`}>
@@ -266,7 +288,6 @@ const FinancialStatements = () => {
                 <XCircleIcon className="h-5 w-5 text-red-500" />
               )}
             </div>
-            
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Budgeted</p>
@@ -287,11 +308,6 @@ const FinancialStatements = () => {
                     {net.variance >= 0 ? '+' : ''}{formatCurrency(net.variance)}
                   </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  {net.favorable 
-                    ? `✓ Performance ${formatCurrency(Math.abs(net.variance))} better than budget` 
-                    : `✗ Performance ${formatCurrency(Math.abs(net.variance))} worse than budget`}
-                </p>
               </div>
             </div>
           </div>
@@ -342,18 +358,18 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Account Code</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Account Name</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Debit (GHS)</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Credit (GHS)</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Code</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit (GHS)</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit (GHS)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {Object.entries(grouped).map(([type, accounts]) => (
+            <tbody className="bg-white divide-y divide-gray-200">
+              {Object.entries(grouped).map(([type, accountsList]) => (
                 <React.Fragment key={type}>
                   <tr className="bg-gray-100">
                     <td colSpan="4" className="px-4 py-2 text-sm font-semibold text-gray-700">
@@ -363,7 +379,7 @@ const FinancialStatements = () => {
                       </div>
                     </td>
                   </tr>
-                  {accounts.map((account, idx) => (
+                  {accountsList.map((account, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm font-mono text-gray-600">{account.code}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">{account.name}</td>
@@ -392,11 +408,12 @@ const FinancialStatements = () => {
   const renderIncomeStatement = () => {
     if (!statementData) return null;
     
-    const { revenue, expenses, net_income } = statementData;
+    const revenue = statementData.revenue || { categories: {}, total: 0 };
+    const expenses = statementData.expenses || { categories: {}, total: 0 };
+    const netIncome = statementData.net_income || 0;
     
     return (
       <div className="space-y-6">
-        {/* Budget Variance Card */}
         {budgetLoading ? (
           <div className="flex justify-center py-8">
             <LoadingSpinner size="small" />
@@ -405,30 +422,36 @@ const FinancialStatements = () => {
           <BudgetVarianceCard />
         )}
         
-        {/* Income Section */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
             <h3 className="text-lg font-semibold text-green-700">INCOME</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-gray-200">
-                {Object.entries(revenue?.categories || {}).map(([category, data]) => (
+                {Object.entries(revenue.categories || {}).map(([category, categoryData]) => (
                   <React.Fragment key={category}>
                     <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">
-                        {category}
-                      </td>
+                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">{category}</td>
                       <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
-                        {formatCurrency(data.total)}
+                        {formatCurrency(categoryData.total || 0)}
                       </td>
                     </tr>
-                    {data.accounts?.map((account, idx) => (
+                    {(categoryData.accounts || []).map((account, idx) => (
                       <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs font-mono text-gray-500">{account.code}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{account.name}</td>
-                        <td className="px-4 py-1 text-sm text-right text-green-600">
-                          {formatCurrency(account.amount)}
+                        <td className="px-4 py-2 text-xs text-gray-400"></td>
+                        <td className="px-4 py-2 text-sm text-gray-600">
+                          {account.code} - {account.name}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right text-green-600">
+                          {formatCurrency(account.amount || 0)}
                         </td>
                       </tr>
                     ))}
@@ -437,7 +460,7 @@ const FinancialStatements = () => {
                 <tr className="bg-green-100 font-bold">
                   <td colSpan="2" className="px-4 py-3 text-sm">TOTAL INCOME</td>
                   <td className="px-4 py-3 text-sm text-right text-green-700">
-                    {formatCurrency(revenue?.total || 0)}
+                    {formatCurrency(revenue.total || 0)}
                   </td>
                 </tr>
               </tbody>
@@ -445,30 +468,36 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Expenses Section */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-red-50 border-b border-red-200">
             <h3 className="text-lg font-semibold text-red-700">EXPENDITURE</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-gray-200">
-                {Object.entries(expenses?.categories || {}).map(([category, data]) => (
+                {Object.entries(expenses.categories || {}).map(([category, categoryData]) => (
                   <React.Fragment key={category}>
                     <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">
-                        {category}
-                      </td>
+                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">{category}</td>
                       <td className="px-4 py-2 text-sm text-right font-semibold text-red-600">
-                        {formatCurrency(data.total)}
+                        {formatCurrency(categoryData.total || 0)}
                       </td>
                     </tr>
-                    {data.accounts?.map((account, idx) => (
+                    {(categoryData.accounts || []).map((account, idx) => (
                       <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs font-mono text-gray-500">{account.code}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{account.name}</td>
-                        <td className="px-4 py-1 text-sm text-right text-red-600">
-                          {formatCurrency(account.amount)}
+                        <td className="px-4 py-2 text-xs text-gray-400"></td>
+                        <td className="px-4 py-2 text-sm text-gray-600">
+                          {account.code} - {account.name}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right text-red-600">
+                          {formatCurrency(account.amount || 0)}
                         </td>
                       </tr>
                     ))}
@@ -477,7 +506,7 @@ const FinancialStatements = () => {
                 <tr className="bg-red-100 font-bold">
                   <td colSpan="2" className="px-4 py-3 text-sm">TOTAL EXPENDITURE</td>
                   <td className="px-4 py-3 text-sm text-right text-red-700">
-                    {formatCurrency(expenses?.total || 0)}
+                    {formatCurrency(expenses.total || 0)}
                   </td>
                 </tr>
               </tbody>
@@ -485,12 +514,11 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Net Income */}
-        <div className={`bg-white rounded-lg p-4 border ${net_income >= 0 ? 'border-green-200' : 'border-red-200'}`}>
+        <div className={`bg-white rounded-lg p-4 border ${netIncome >= 0 ? 'border-green-200' : 'border-red-200'}`}>
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-700">NET {net_income >= 0 ? 'SURPLUS' : 'DEFICIT'}</span>
-            <span className={`text-2xl font-bold ${net_income >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(Math.abs(net_income))}
+            <span className="text-lg font-semibold text-gray-700">NET {netIncome >= 0 ? 'SURPLUS' : 'DEFICIT'}</span>
+            <span className={`text-2xl font-bold ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(Math.abs(netIncome))}
             </span>
           </div>
         </div>
@@ -510,7 +538,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">ASSETS</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {assets?.current?.length > 0 && (
@@ -543,7 +571,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">LIABILITIES</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {liabilities?.current?.map((item, idx) => (
@@ -566,7 +594,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">EQUITY</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {equity?.accounts?.map((item, idx) => (
@@ -608,7 +636,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-700">OPENING BALANCES</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {openingBalances?.cashAccounts?.map((acc, idx) => (
@@ -636,7 +664,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
             <h3 className="text-lg font-semibold text-green-700">RECEIPTS</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             {Object.entries(receipts?.byAccount || {}).map(([accountKey, data]) => (
               <div key={accountKey} className="mb-4">
                 <div className="flex justify-between items-center bg-green-100 p-2 rounded">
@@ -667,7 +695,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-red-50 border-b border-red-200">
             <h3 className="text-lg font-semibold text-red-700">PAYMENTS</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             {Object.entries(payments?.byAccount || {}).map(([accountKey, data]) => (
               <div key={accountKey} className="mb-4">
                 <div className="flex justify-between items-center bg-red-100 p-2 rounded">
@@ -723,7 +751,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">CASH FLOW FROM OPERATING ACTIVITIES</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {operating?.items?.map((item, idx) => (
@@ -745,7 +773,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">CASH FLOW FROM INVESTING ACTIVITIES</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {investing?.items?.map((item, idx) => (
@@ -767,7 +795,7 @@ const FinancialStatements = () => {
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">CASH FLOW FROM FINANCING ACTIVITIES</h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
                 {financing?.items?.map((item, idx) => (
@@ -823,7 +851,6 @@ const FinancialStatements = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Financial Statements</h1>
@@ -834,11 +861,11 @@ const FinancialStatements = () => {
           <div className="mt-4 sm:mt-0 flex space-x-3">
             <button
               onClick={() => handleExport('csv')}
-              disabled={!statementData}
+              disabled={exporting || !statementData}
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
               <DocumentArrowDownIcon className="h-5 w-5 mr-2" />
-              Export CSV
+              {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
             <button
               onClick={fetchStatementData}
@@ -851,7 +878,6 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Statement Selector */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 p-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             {statements.map((stmt) => {
@@ -876,15 +902,12 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Date Range Selector */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {activeStatement !== 'trialBalance' && activeStatement !== 'balanceSheet' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={dateRange.startDate}
@@ -893,9 +916,7 @@ const FinancialStatements = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                   <input
                     type="date"
                     value={dateRange.endDate}
@@ -906,9 +927,7 @@ const FinancialStatements = () => {
               </>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  As at Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">As at Date</label>
                 <input
                   type="date"
                   value={dateRange.asAt}
@@ -928,7 +947,6 @@ const FinancialStatements = () => {
           </div>
         </div>
 
-        {/* Statement Content */}
         {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-12">
             <LoadingSpinner />
@@ -943,7 +961,6 @@ const FinancialStatements = () => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
           >
-            {/* Statement Header */}
             <div className="mb-6 pb-4 border-b border-gray-200">
               <h2 className="text-2xl font-bold text-gray-900">
                 {statements.find(s => s.id === activeStatement)?.name}
@@ -955,8 +972,6 @@ const FinancialStatements = () => {
                   `For the period ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`}
               </p>
             </div>
-
-            {/* Statement Body */}
             {renderStatement()}
           </motion.div>
         ) : null}
