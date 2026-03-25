@@ -1,5 +1,5 @@
 // src/pages/Payroll/PayrollDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -58,10 +58,10 @@ function PayrollDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
 
-  // Fetch payroll dashboard data
-  const { data, isLoading, error, refetch } = useQuery({
+  // Fetch payroll dashboard data - FIX: Add queryFn
+  const { data: dashboardData, isLoading, error, refetch } = useQuery({
     queryKey: ['payrollDashboard'],
-    queryFn: payrollService.getPayrollDashboard,
+    queryFn: payrollService.getPayrollDashboard, // Add this line
   });
 
   const handleRefresh = async () => {
@@ -85,7 +85,7 @@ function PayrollDashboard() {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'draft':
         return 'bg-gray-100 text-gray-800';
       case 'approved':
@@ -102,7 +102,7 @@ function PayrollDashboard() {
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'approved':
         return <CheckCircleIcon className="h-3 w-3 mr-1" />;
       case 'processing':
@@ -124,16 +124,17 @@ function PayrollDashboard() {
     return <ErrorAlert message="Failed to load payroll dashboard" />;
   }
 
-  const dashboardData = data?.data || {};
-  const monthlyTotals = dashboardData.monthly_totals || [];
-  const ytdTotal = monthlyTotals.reduce((sum, m) => sum + m.total, 0);
-  const currentMonthPayroll = dashboardData.current_month_payroll;
+  // Use dashboardData directly (not data.data)
+  const data = dashboardData || {};
+  const monthlyTotals = data.monthly_totals || [];
+  const ytdTotal = monthlyTotals.reduce((sum, m) => sum + (m.total || 0), 0);
+  const currentMonthPayroll = data.current_month_payroll;
   
   // Prepare chart data for monthly trend
   const chartData = monthlyTotals.map((item, index) => ({
     month: item.month,
-    amount: item.total,
-    formattedAmount: formatCurrency(item.total)
+    amount: item.total || 0,
+    formattedAmount: formatCurrency(item.total || 0)
   }));
 
   const StatCard = ({ title, value, subtitle, icon: Icon, color, trend, isCurrency = true }) => (
@@ -155,7 +156,7 @@ function PayrollDashboard() {
         </div>
         <h3 className="text-sm font-medium text-gray-500 mb-1">{title}</h3>
         <p className="text-2xl font-bold text-gray-900">
-          {isCurrency ? formatCurrency(value) : value.toLocaleString()}
+          {isCurrency ? formatCurrency(value) : (value || 0).toLocaleString()}
         </p>
         {subtitle && <p className="text-xs text-gray-400 mt-2">{subtitle}</p>}
       </div>
@@ -204,7 +205,7 @@ function PayrollDashboard() {
                 {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
               <button
-                onClick={() => navigate('/payroll/process')}
+                onClick={() => navigate('/payroll/calculate')}
                 className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-[rgb(31,178,86)] rounded-xl hover:bg-[rgb(25,142,69)] transition-colors shadow-sm"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
@@ -220,7 +221,7 @@ function PayrollDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Employees"
-            value={dashboardData.total_employees || 0}
+            value={data.total_employees || 0}
             subtitle="Active employees"
             icon={UserGroupIcon}
             color="blue"
@@ -233,12 +234,11 @@ function PayrollDashboard() {
             icon={CurrencyDollarIcon}
             color="green"
             isCurrency={true}
-            trend={5.2}
           />
           <StatCard
             title="Next Payment"
-            value={dashboardData.next_payroll?.payment_date ? formatDate(dashboardData.next_payroll.payment_date) : 'Not scheduled'}
-            subtitle={dashboardData.next_payroll?.status || 'No pending'}
+            value={data.next_payroll?.payment_date ? formatDate(data.next_payroll.payment_date) : 'Not scheduled'}
+            subtitle={data.next_payroll?.status || 'No pending'}
             icon={CalendarIcon}
             color="yellow"
             isCurrency={false}
@@ -250,12 +250,11 @@ function PayrollDashboard() {
             icon={ArrowTrendingUpIcon}
             color="purple"
             isCurrency={true}
-            trend={12.8}
           />
         </div>
 
         {/* Current Month Payroll Details Card */}
-        {currentMonthPayroll && (
+        {currentMonthPayroll && currentMonthPayroll.total_net > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -268,7 +267,7 @@ function PayrollDashboard() {
                   <span className="text-sm font-medium opacity-90">Current Month Payroll</span>
                 </div>
                 <p className="text-3xl font-bold">{formatCurrency(currentMonthPayroll.total_net)}</p>
-                <p className="text-xs opacity-75 mt-1">Net pay for {currentMonthPayroll.employee_count} employees</p>
+                <p className="text-xs opacity-75 mt-1">Net pay for {currentMonthPayroll.employee_count || 0} employees</p>
               </div>
               <div className="grid grid-cols-2 gap-6 text-center">
                 <div>
@@ -280,13 +279,15 @@ function PayrollDashboard() {
                   <p className="text-xl font-semibold">{formatCurrency(currentMonthPayroll.total_deductions)}</p>
                 </div>
               </div>
-              <button
-                onClick={() => navigate(`/payroll/runs/${currentMonthPayroll.id}`)}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-600 bg-white rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                <EyeIcon className="h-4 w-4 mr-2" />
-                View Details
-              </button>
+              {currentMonthPayroll.id && (
+                <button
+                  onClick={() => navigate(`/payroll/runs/${currentMonthPayroll.id}`)}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-600 bg-white rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <EyeIcon className="h-4 w-4 mr-2" />
+                  View Details
+                </button>
+              )}
             </div>
           </motion.div>
         )}
@@ -297,11 +298,11 @@ function PayrollDashboard() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Employee Distribution</h2>
             <div className="h-80">
-              {dashboardData.employees_by_type && dashboardData.employees_by_type.length > 0 ? (
+              {data.employees_by_type && data.employees_by_type.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={dashboardData.employees_by_type}
+                      data={data.employees_by_type}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -311,7 +312,7 @@ function PayrollDashboard() {
                       nameKey="type"
                       label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {dashboardData.employees_by_type.map((entry, index) => (
+                      {data.employees_by_type.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS.chart[index % COLORS.chart.length]} />
                       ))}
                     </Pie>
@@ -343,7 +344,7 @@ function PayrollDashboard() {
               </div>
             </div>
             <div className="h-80">
-              {chartData.length > 0 ? (
+              {chartData.length > 0 && chartData.some(d => d.amount > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <defs>
@@ -382,7 +383,7 @@ function PayrollDashboard() {
               <DocumentTextIcon className="h-5 w-5 text-gray-500" />
               <h2 className="text-lg font-semibold text-gray-900">Recent Payroll Runs</h2>
             </div>
-            {dashboardData.recent_runs && dashboardData.recent_runs.length > 0 && (
+            {data.recent_runs && data.recent_runs.length > 0 && (
               <button
                 onClick={() => navigate('/payroll/runs')}
                 className="text-sm text-[rgb(31,178,86)] hover:underline flex items-center"
@@ -403,10 +404,10 @@ function PayrollDashboard() {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                 </tr>
+                </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {dashboardData.recent_runs?.map((run, index) => (
+                {data.recent_runs?.map((run, index) => (
                   <motion.tr
                     key={run.id}
                     initial={{ opacity: 0, y: 10 }}
@@ -418,7 +419,9 @@ function PayrollDashboard() {
                       {run.run_number}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {format(new Date(run.period_start), 'dd MMM')} - {format(new Date(run.period_end), 'dd MMM yyyy')}
+                      {run.period_start && run.period_end ? 
+                        `${format(new Date(run.period_start), 'dd MMM')} - ${format(new Date(run.period_end), 'dd MMM yyyy')}` 
+                        : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
                       {formatCurrency(run.total_gross)}
@@ -446,13 +449,13 @@ function PayrollDashboard() {
                     </td>
                   </motion.tr>
                 ))}
-                {(!dashboardData.recent_runs || dashboardData.recent_runs.length === 0) && (
+                {(!data.recent_runs || data.recent_runs.length === 0) && (
                   <tr>
                     <td colSpan="7" className="px-6 py-12 text-center text-gray-400">
                       <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                       <p className="text-sm mb-2">No payroll runs found</p>
                       <button
-                        onClick={() => navigate('/payroll/process')}
+                        onClick={() => navigate('/payroll/calculate')}
                         className="text-sm text-[rgb(31,178,86)] hover:underline"
                       >
                         Process your first payroll

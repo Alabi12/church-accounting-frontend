@@ -1,4 +1,4 @@
-// services/accountant.js
+// src/services/accountant.js
 import api from './api';
 
 export const accountantService = {
@@ -234,6 +234,34 @@ export const accountantService = {
     }
   },
 
+  // ==================== TAX REPORT METHODS ====================
+  getTaxReport: async (year, type = 'summary') => {
+    try {
+      console.log(`📊 Fetching tax report for ${year} (${type})...`);
+      const response = await api.get('/accounting/tax-reports', {
+        params: { year, type }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching tax report:', error);
+      throw error;
+    }
+  },
+
+  exportTaxReport: async (year, type = 'summary', format = 'csv') => {
+    try {
+      console.log(`📊 Exporting tax report for ${year} (${type}) as ${format}...`);
+      const response = await api.get('/accounting/tax-reports/export', {
+        params: { year, type, format },
+        responseType: 'blob'
+      });
+      return response;
+    } catch (error) {
+      console.error('Error exporting tax report:', error);
+      throw error;
+    }
+  },
+
   // ==================== CHART OF ACCOUNTS METHODS ====================
   getChartOfAccounts: async () => {
     try {
@@ -243,6 +271,17 @@ export const accountantService = {
     } catch (error) {
       console.error('Error fetching chart of accounts:', error);
       throw error;
+    }
+  },
+
+  getChartOfAccountsGrouped: async () => {
+    try {
+      console.log('📊 Fetching grouped chart of accounts...');
+      const response = await api.get('/accounting/chart-of-accounts');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching grouped chart of accounts:', error);
+      return { chart_of_accounts: {} };
     }
   },
 
@@ -262,6 +301,19 @@ export const accountantService = {
     } catch (error) {
       console.error('Error fetching accounts:', error);
       throw error;
+    }
+  },
+
+  getAccountsForJournal: async (params = {}) => {
+    try {
+      console.log('📊 Fetching accounts for journal...');
+      const response = await api.get('/accounting/accounts', { 
+        params: { ...params, isActive: true }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching accounts for journal:', error);
+      return { accounts: [] };
     }
   },
 

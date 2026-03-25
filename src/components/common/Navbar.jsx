@@ -15,6 +15,7 @@ import {
   XMarkIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  CalculatorIcon,
 } from '@heroicons/react/24/outline';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -105,10 +106,12 @@ export default function Navbar() {
     return roleMap[user?.role] || user?.role?.replace(/_/g, ' ') || 'User';
   };
 
+  // Updated quick actions with correct payroll link
   const quickActions = [
     { name: 'Dashboard', icon: HomeIcon, path: '/dashboard' },
     { name: 'Journal Entry', icon: DocumentTextIcon, path: '/accountant/journal-entries/add' },
-    { name: 'Process Payroll', icon: ChartBarIcon, path: '/payroll/process' },
+    { name: 'Calculate Payroll', icon: CalculatorIcon, path: '/payroll/calculate' }, // Updated from /payroll/process to /payroll/calculate
+    { name: 'Payroll Runs', icon: ChartBarIcon, path: '/payroll/runs' },
   ];
 
   return (
@@ -117,8 +120,6 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           {/* Left side - Logo/Brand */}
           <div className="flex items-center">
-            <div className="flex-shrink-0 flex items-center">
-            </div>
           </div>
 
           {/* Center - Quick Actions (Desktop) */}
