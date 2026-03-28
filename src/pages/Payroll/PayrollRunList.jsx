@@ -1,3 +1,4 @@
+// pages/Payroll/PayrollRunList.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -9,14 +10,11 @@ import {
   ClockIcon,
   ArrowPathIcon,
   DocumentDuplicateIcon,
-  CalendarIcon,
   CurrencyDollarIcon,
   UserGroupIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   FunnelIcon,
   XMarkIcon,
-  CalculatorIcon,  // Add this import
+  PrinterIcon,
 } from '@heroicons/react/24/outline';
 import { payrollService } from '../../services/payrollService';
 import { useAuth } from '../../context/AuthContext';
@@ -37,6 +35,9 @@ const PayrollRunList = () => {
 
   useEffect(() => {
     fetchRuns();
+    // Refresh every 30 seconds to check for new approvals
+    const interval = setInterval(fetchRuns, 30000);
+    return () => clearInterval(interval);
   }, [statusFilter]);
 
   const fetchRuns = async () => {
@@ -50,6 +51,20 @@ const PayrollRunList = () => {
       toast.error('Failed to load payroll runs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitForApproval = async (id) => {
+    if (!window.confirm('Submit this payroll run for approval?')) return;
+    setProcessingId(id);
+    try {
+      await payrollService.submitPayrollRun(id);
+      toast.success('Payroll run submitted for approval');
+      fetchRuns();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to submit payroll run');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -86,7 +101,7 @@ const PayrollRunList = () => {
     if (!window.confirm('Post this payroll run to the general ledger? This action cannot be undone.')) return;
     setProcessingId(id);
     try {
-      await payrollService.postPayrollJournal(id);
+      const result = await payrollService.postPayrollJournal(id);
       toast.success('Payroll posted to ledger successfully');
       fetchRuns();
     } catch (error) {
@@ -97,14 +112,14 @@ const PayrollRunList = () => {
   };
 
   const getStatusBadge = (status) => {
-    const statusConfig = {
-      INITIATED: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: <ClockIcon className="h-3 w-3" />, label: 'Initiated' },
-      CALCULATED: { bg: 'bg-blue-100', text: 'text-blue-800', icon: <CalculatorIcon className="h-3 w-3" />, label: 'Calculated' },
-      APPROVED: { bg: 'bg-green-100', text: 'text-green-800', icon: <CheckCircleIcon className="h-3 w-3" />, label: 'Approved' },
-      REJECTED: { bg: 'bg-red-100', text: 'text-red-800', icon: <XCircleIcon className="h-3 w-3" />, label: 'Rejected' },
-      POSTED: { bg: 'bg-purple-100', text: 'text-purple-800', icon: <DocumentDuplicateIcon className="h-3 w-3" />, label: 'Posted' },
+    const statusMap = {
+      draft: { bg: 'bg-gray-100', text: 'text-gray-800', icon: <ClockIcon className="h-3 w-3" />, label: 'Draft', action: 'Submit' },
+      submitted: { bg: 'bg-yellow-100', text: 'text-yellow-800', icon: <ClockIcon className="h-3 w-3" />, label: 'Pending Approval', action: 'Approve' },
+      approved: { bg: 'bg-green-100', text: 'text-green-800', icon: <CheckCircleIcon className="h-3 w-3" />, label: 'Approved', action: 'Post' },
+      rejected: { bg: 'bg-red-100', text: 'text-red-800', icon: <XCircleIcon className="h-3 w-3" />, label: 'Rejected', action: 'Review' },
+      processed: { bg: 'bg-purple-100', text: 'text-purple-800', icon: <DocumentDuplicateIcon className="h-3 w-3" />, label: 'Posted to Ledger', action: 'View' },
     };
-    const config = statusConfig[status] || { bg: 'bg-gray-100', text: 'text-gray-800', icon: null, label: status };
+    const config = statusMap[status?.toLowerCase()] || statusMap.draft;
     return (
       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
         {config.icon}
@@ -136,6 +151,12 @@ const PayrollRunList = () => {
 
   if (loading) return <LoadingSpinner />;
 
+  // Calculate counts for each status
+  const draftCount = runs.filter(r => r.status === 'draft').length;
+  const submittedCount = runs.filter(r => r.status === 'submitted').length;
+  const approvedCount = runs.filter(r => r.status === 'approved').length;
+  const processedCount = runs.filter(r => r.status === 'processed').length;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -144,7 +165,7 @@ const PayrollRunList = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Payroll Runs</h1>
             <p className="text-sm text-gray-500 mt-1">
-              View and manage payroll runs through the approval workflow
+              Manage payroll runs through the approval workflow
             </p>
           </div>
           {isAccountant && (
@@ -156,6 +177,30 @@ const PayrollRunList = () => {
               New Payroll Run
             </button>
           )}
+        </div>
+
+        {/* Workflow Status Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 border-l-4 border-gray-500 shadow-sm">
+            <p className="text-xs text-gray-500">Draft</p>
+            <p className="text-2xl font-bold text-gray-900">{draftCount}</p>
+            <p className="text-xs text-gray-400 mt-1">Ready for submission</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-l-4 border-yellow-500 shadow-sm">
+            <p className="text-xs text-gray-500">Pending Approval</p>
+            <p className="text-2xl font-bold text-yellow-600">{submittedCount}</p>
+            <p className="text-xs text-gray-400 mt-1">Awaiting treasurer review</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm">
+            <p className="text-xs text-gray-500">Approved</p>
+            <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
+            <p className="text-xs text-gray-400 mt-1">Ready to post</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border-l-4 border-purple-500 shadow-sm">
+            <p className="text-xs text-gray-500">Posted to Ledger</p>
+            <p className="text-2xl font-bold text-purple-600">{processedCount}</p>
+            <p className="text-xs text-gray-400 mt-1">Completed</p>
+          </div>
         </div>
 
         {/* Filters */}
@@ -184,40 +229,14 @@ const PayrollRunList = () => {
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
               >
                 <option value="all">All Statuses</option>
-                <option value="INITIATED">Initiated</option>
-                <option value="CALCULATED">Calculated</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-                <option value="POSTED">Posted</option>
+                <option value="draft">Draft</option>
+                <option value="submitted">Pending Approval</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="processed">Posted</option>
               </select>
             </div>
           )}
-        </div>
-
-        {/* Stats Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <p className="text-xs text-gray-500">Total Runs</p>
-            <p className="text-2xl font-bold text-gray-900">{runs.length}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <p className="text-xs text-gray-500">Pending Approval</p>
-            <p className="text-2xl font-bold text-yellow-600">
-              {runs.filter(r => r.status === 'CALCULATED').length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <p className="text-xs text-gray-500">Approved</p>
-            <p className="text-2xl font-bold text-green-600">
-              {runs.filter(r => r.status === 'APPROVED').length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <p className="text-xs text-gray-500">Posted</p>
-            <p className="text-2xl font-bold text-purple-600">
-              {runs.filter(r => r.status === 'POSTED').length}
-            </p>
-          </div>
         </div>
 
         {/* Runs Table */}
@@ -232,7 +251,7 @@ const PayrollRunList = () => {
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase">Total Net</th>
                   <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                 </tr>
+                </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {runs.length === 0 ? (
@@ -280,7 +299,20 @@ const PayrollRunList = () => {
                             <EyeIcon className="h-4 w-4" />
                           </button>
                           
-                          {isTreasurer && run.status === 'CALCULATED' && (
+                          {/* Accountant Actions */}
+                          {isAccountant && run.status === 'draft' && (
+                            <button
+                              onClick={() => handleSubmitForApproval(run.id)}
+                              disabled={processingId === run.id}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Submit for Approval"
+                            >
+                              <ArrowPathIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                          
+                          {/* Treasurer Actions */}
+                          {isTreasurer && run.status === 'submitted' && (
                             <>
                               <button
                                 onClick={() => handleApprove(run.id)}
@@ -301,7 +333,8 @@ const PayrollRunList = () => {
                             </>
                           )}
                           
-                          {isAccountant && run.status === 'APPROVED' && (
+                          {/* Accountant Actions - Post to Ledger */}
+                          {isAccountant && run.status === 'approved' && (
                             <button
                               onClick={() => handlePost(run.id)}
                               disabled={processingId === run.id}
@@ -311,6 +344,17 @@ const PayrollRunList = () => {
                               <DocumentDuplicateIcon className="h-4 w-4" />
                             </button>
                           )}
+                          
+                          {/* Print Payslip */}
+                          {run.status === 'processed' && (
+                            <button
+                              onClick={() => navigate(`/payroll/runs/${run.id}/payslips`)}
+                              className="p-1.5 text-gray-600 hover:bg-gray-50 rounded-lg"
+                              title="View Payslips"
+                            >
+                              <PrinterIcon className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -318,6 +362,29 @@ const PayrollRunList = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Workflow Guide */}
+        <div className="mt-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
+          <h4 className="text-sm font-semibold text-blue-800 mb-2">Payroll Workflow Guide</h4>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-gray-600">1</div>
+              <span className="text-gray-700">Accountant creates payroll run</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-yellow-200 rounded-full flex items-center justify-center text-yellow-700">2</div>
+              <span className="text-gray-700">Submits for approval → Pending</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-green-200 rounded-full flex items-center justify-center text-green-700">3</div>
+              <span className="text-gray-700">Treasurer approves → Approved</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-purple-200 rounded-full flex items-center justify-center text-purple-700">4</div>
+              <span className="text-gray-700">Accountant posts to ledger → Completed</span>
+            </div>
           </div>
         </div>
       </div>

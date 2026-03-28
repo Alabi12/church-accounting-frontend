@@ -42,6 +42,7 @@ import {
 } from 'recharts';
 import { treasurerService } from '../../services/treasurer';
 import { accountantService } from '../../services/accountant';
+import { payrollService } from '../../services/payrollService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import toast from 'react-hot-toast';
@@ -73,125 +74,148 @@ const TreasurerDashboard = () => {
     approvalRate: 0
   });
   const [pendingBudgets, setPendingBudgets] = useState([]);
+  const [pendingPayrollRuns, setPendingPayrollRuns] = useState([]);
   const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [selectedTimeframe, setSelectedTimeframe] = useState('6months');
   const [error, setError] = useState(null);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
     fetchDashboardData();
   }, [selectedTimeframe]);
 
-  const fetchDashboardData = async (showToast = false) => {
-    try {
-      if (showToast) setRefreshing(true);
-      else setLoading(true);
-      setError(null);
+ const fetchDashboardData = async (showToast = false) => {
+  try {
+    if (showToast) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
 
-      console.log('📊 FETCHING TREASURER DASHBOARD DATA');
+    console.log('📊 FETCHING TREASURER DASHBOARD DATA');
 
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0];
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0];
 
-      const [
-        incomeStatementRes,
-        balanceSheetRes,
-        budgetsRes,
-        pendingJournalRes,
-        trendsRes,
-        categoriesRes,
-        recentEntriesRes
-      ] = await Promise.allSettled([
-        accountantService.getIncomeStatement(startDate, endDate),
-        accountantService.getBalanceSheet(endDate),
-        treasurerService.getBudgets({ status: 'PENDING', perPage: 10 }),
-        accountantService.getJournalEntries({ status: 'PENDING' }),
-        getTrendData(),
-        treasurerService.getCategoryBreakdown('month'),
-        accountantService.getRecentEntries(10)
-      ]);
+    const [
+      incomeStatementRes,
+      balanceSheetRes,
+      budgetsRes,
+      pendingJournalRes,
+      pendingPayrollRes,
+      trendsRes,
+      categoriesRes,
+      recentEntriesRes
+    ] = await Promise.allSettled([
+      accountantService.getIncomeStatement(startDate, endDate),
+      accountantService.getBalanceSheet(endDate),
+      treasurerService.getBudgets({ status: 'PENDING', perPage: 10 }),
+      accountantService.getJournalEntries({ status: 'PENDING' }),
+      payrollService.getPayrollRuns({ status: 'submitted' }),
+      getTrendData(),
+      accountantService.getCategoryBreakdown?.('month') || Promise.resolve([]),
+      accountantService.getRecentEntries(10)
+    ]);
 
-      // Process Income Statement
-      if (incomeStatementRes.status === 'fulfilled' && incomeStatementRes.value) {
-        const income = incomeStatementRes.value.revenue?.total || 0;
-        const expenses = incomeStatementRes.value.expenses?.total || 0;
-        setStats(prev => ({
-          ...prev,
-          totalIncome: income,
-          totalExpenses: expenses,
-          netBalance: income - expenses
-        }));
-      }
-
-      // Process Balance Sheet
-      if (balanceSheetRes.status === 'fulfilled' && balanceSheetRes.value) {
-        const totalAssets = balanceSheetRes.value.assets?.total || 0;
-        const totalLiabilities = balanceSheetRes.value.liabilities?.total || 0;
-        setStats(prev => ({
-          ...prev,
-          accountBalance: totalAssets - totalLiabilities
-        }));
-      }
-
-      // Process Pending Journal Entries
-      if (pendingJournalRes.status === 'fulfilled' && pendingJournalRes.value) {
-        const entries = pendingJournalRes.value.entries || [];
-        const formattedEntries = entries.map(entry => ({
-          id: entry.id,
-          entryNumber: entry.entry_number,
-          description: entry.description,
-          amount: entry.total_debit || entry.total_credit || 0,
-          status: entry.status,
-          submittedBy: entry.created_by_name || 'Accountant',
-          submittedAt: entry.created_at || entry.entry_date,
-          reference: entry.reference
-        }));
-        
-        setPendingJournalEntries(formattedEntries);
-        const totalAmount = formattedEntries.reduce((sum, e) => sum + e.amount, 0);
-        setStats(prev => ({
-          ...prev,
-          pendingApprovals: formattedEntries.length,
-          pendingAmount: totalAmount,
-          approvalRate: prev.totalIncome > 0 ? ((prev.totalIncome - totalAmount) / prev.totalIncome) * 100 : 0
-        }));
-      }
-
-      // Process Budgets
-      if (budgetsRes.status === 'fulfilled' && budgetsRes.value) {
-        setPendingBudgets(budgetsRes.value.budgets || []);
-      }
-
-      // Process Trends
-      if (trendsRes.status === 'fulfilled' && trendsRes.value) {
-        setTrendData(trendsRes.value);
-      }
-
-      // Process Categories
-      if (categoriesRes.status === 'fulfilled' && categoriesRes.value) {
-        setCategoryData(categoriesRes.value);
-      }
-
-      // Process Recent Activity
-      if (recentEntriesRes.status === 'fulfilled' && recentEntriesRes.value) {
-        setRecentActivity(recentEntriesRes.value.entries || []);
-      }
-
-      if (showToast) toast.success('Dashboard refreshed');
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError(error.message);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    // Process Income Statement
+    if (incomeStatementRes.status === 'fulfilled' && incomeStatementRes.value) {
+      const income = incomeStatementRes.value.revenue?.total || 0;
+      const expenses = incomeStatementRes.value.expenses?.total || 0;
+      setStats(prev => ({
+        ...prev,
+        totalIncome: income,
+        totalExpenses: expenses,
+        netBalance: income - expenses
+      }));
     }
-  };
+
+    // Process Balance Sheet
+    if (balanceSheetRes.status === 'fulfilled' && balanceSheetRes.value) {
+      const totalAssets = balanceSheetRes.value.assets?.total || 0;
+      const totalLiabilities = balanceSheetRes.value.liabilities?.total || 0;
+      setStats(prev => ({
+        ...prev,
+        accountBalance: totalAssets - totalLiabilities
+      }));
+    }
+
+    // Process Pending Payroll Runs
+    let formattedRuns = [];
+    if (pendingPayrollRes.status === 'fulfilled' && pendingPayrollRes.value) {
+      const runs = pendingPayrollRes.value.runs || [];
+      formattedRuns = runs.map(run => ({
+        id: run.id,
+        runNumber: run.run_number,
+        periodStart: run.period_start,
+        periodEnd: run.period_end,
+        totalGross: run.total_gross,
+        totalNet: run.total_net,
+        submittedBy: run.submitted_by_name || 'Accountant',
+        submittedAt: run.submitted_at || run.created_at
+      }));
+      setPendingPayrollRuns(formattedRuns);
+    }
+
+    // Process Pending Journal Entries
+    let formattedEntries = [];
+    if (pendingJournalRes.status === 'fulfilled' && pendingJournalRes.value) {
+      const entries = pendingJournalRes.value.entries || [];
+      formattedEntries = entries.map(entry => ({
+        id: entry.id,
+        entryNumber: entry.entry_number,
+        description: entry.description,
+        amount: entry.total_debit || entry.total_credit || 0,
+        status: entry.status,
+        submittedBy: entry.created_by_name || 'Accountant',
+        submittedAt: entry.created_at || entry.entry_date,
+        reference: entry.reference
+      }));
+      
+      setPendingJournalEntries(formattedEntries);
+      const totalAmount = formattedEntries.reduce((sum, e) => sum + e.amount, 0);
+      const payrollAmount = formattedRuns.reduce((sum, r) => sum + (r.totalNet || 0), 0);
+      const pendingCount = formattedRuns.length + formattedEntries.length;
+      
+      setStats(prev => ({
+        ...prev,
+        pendingApprovals: pendingCount,
+        pendingAmount: totalAmount + payrollAmount,
+        approvalRate: prev.totalIncome > 0 ? ((prev.totalIncome - totalAmount) / prev.totalIncome) * 100 : 0
+      }));
+    }
+
+    // Process Budgets
+    if (budgetsRes.status === 'fulfilled' && budgetsRes.value) {
+      setPendingBudgets(budgetsRes.value.budgets || []);
+    }
+
+    // Process Trends
+    if (trendsRes.status === 'fulfilled' && trendsRes.value) {
+      setTrendData(trendsRes.value);
+    }
+
+    // Process Categories
+    if (categoriesRes.status === 'fulfilled' && categoriesRes.value) {
+      setCategoryData(categoriesRes.value);
+    }
+
+    // Process Recent Activity
+    if (recentEntriesRes.status === 'fulfilled' && recentEntriesRes.value) {
+      setRecentActivity(recentEntriesRes.value.entries || []);
+    }
+
+    if (showToast) toast.success('Dashboard refreshed');
+
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    setError(error.message);
+    toast.error('Failed to load dashboard data');
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const getTrendData = async () => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -219,25 +243,61 @@ const TreasurerDashboard = () => {
     return trend;
   };
 
-  const handleApprove = async (entryId) => {
+  const handleApprovePayroll = async (runId) => {
+    if (!window.confirm('Approve this payroll run?')) return;
+    setProcessingId(runId);
     try {
-      await accountantService.postJournalEntry(entryId);
-      toast.success('Journal entry approved and posted');
+      await payrollService.approvePayrollRun(runId);
+      toast.success('Payroll run approved successfully');
       fetchDashboardData(true);
     } catch (error) {
-      toast.error('Failed to approve journal entry');
+      toast.error(error.response?.data?.error || 'Failed to approve payroll run');
+    } finally {
+      setProcessingId(null);
     }
   };
 
-  const handleReject = async (entryId) => {
+  const handleRejectPayroll = async (runId) => {
     const reason = prompt('Please enter reason for rejection:');
     if (!reason) return;
+    setProcessingId(runId);
     try {
-      await accountantService.voidJournalEntry(entryId, reason);
+      await payrollService.rejectPayrollRun(runId, { reason });
+      toast.success('Payroll run rejected');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject payroll run');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleApproveJournal = async (entryId) => {
+    if (!window.confirm('Approve this journal entry?')) return;
+    setProcessingId(entryId);
+    try {
+      await accountantService.approveJournalEntry(entryId);
+      toast.success('Journal entry approved successfully');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve journal entry');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectJournal = async (entryId) => {
+    const reason = prompt('Please enter reason for rejection:');
+    if (!reason) return;
+    setProcessingId(entryId);
+    try {
+      await accountantService.rejectJournalEntry(entryId, { reason });
       toast.success('Journal entry rejected');
       fetchDashboardData(true);
     } catch (error) {
-      toast.error('Failed to reject journal entry');
+      toast.error(error.response?.data?.error || 'Failed to reject journal entry');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -369,6 +429,154 @@ const TreasurerDashboard = () => {
             isCurrency={false}
           />
         </div>
+
+        {/* Pending Payroll Runs Section */}
+        {pendingPayrollRuns.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <UserGroupIcon className="h-5 w-5 text-yellow-600" />
+              Pending Payroll Approvals ({pendingPayrollRuns.length})
+            </h2>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Run Number</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Gross</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Net</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted By</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {pendingPayrollRuns.map((run) => (
+                      <tr key={run.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {run.runNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(run.periodStart)} - {formatDate(run.periodEnd)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
+                          {formatCurrency(run.totalGross)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-[rgb(31,178,86)]">
+                          {formatCurrency(run.totalNet)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {run.submittedBy}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => navigate(`/payroll/runs/${run.id}`)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="View Details"
+                            >
+                              <EyeIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleApprovePayroll(run.id)}
+                              disabled={processingId === run.id}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                              title="Approve"
+                            >
+                              <CheckCircleIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRejectPayroll(run.id)}
+                              disabled={processingId === run.id}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Reject"
+                            >
+                              <XCircleIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Journal Entries Section */}
+        {pendingJournalEntries.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <DocumentTextIcon className="h-5 w-5 text-yellow-600" />
+              Pending Journal Approvals ({pendingJournalEntries.length})
+            </h2>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry Number</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {pendingJournalEntries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {entry.entryNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(entry.submittedAt)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                          {entry.description}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                          {formatCurrency(entry.amount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {entry.submittedBy}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => navigate(`/accounting/journal-entries/${entry.id}`)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="View Details"
+                            >
+                              <EyeIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleApproveJournal(entry.id)}
+                              disabled={processingId === entry.id}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                              title="Approve"
+                            >
+                              <CheckCircleIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRejectJournal(entry.id)}
+                              disabled={processingId === entry.id}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Reject"
+                            >
+                              <XCircleIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
