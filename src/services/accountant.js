@@ -608,8 +608,6 @@ debugChartOfAccounts: async () => {
     }
   },
 
-  // ==================== RECONCILIATION METHODS ====================
-  // services/accountant.js - Complete reconciliation section
 
 // ==================== RECONCILIATION METHODS ====================
 getBankAccounts: async () => {
@@ -700,6 +698,37 @@ completeReconciliation: async (data) => {
     ];
   },
 
+getCategoryBreakdown: async (period = 'month') => {
+  try {
+    const response = await api.get('/accounting/treasurer/category-breakdown', { params: { period } });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching category breakdown:', error);
+    return []; // Return empty array on error
+  }
+},
+
+// Add to accountant.js
+approveJournalEntry: async (id, comments = '') => {
+  try {
+    const response = await api.post(`/accounting/journal-entries/${id}/approve`, { comments });
+    return response.data;
+  } catch (error) {
+    console.error('Error approving journal entry:', error);
+    throw error;
+  }
+},
+
+rejectJournalEntry: async (id, data) => {
+  try {
+    const response = await api.post(`/accounting/journal-entries/${id}/reject`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error rejecting journal entry:', error);
+    throw error;
+  }
+},
+
   getFiscalYears: (startYear = 2020, endYear = new Date().getFullYear() + 1) => {
     const years = [];
     for (let year = startYear; year <= endYear; year++) {
@@ -760,6 +789,8 @@ completeReconciliation: async (data) => {
       errors
     };
   }
+  
 };
+
 
 export default accountantService;
