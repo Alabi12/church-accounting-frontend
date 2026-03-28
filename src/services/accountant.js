@@ -45,7 +45,20 @@ export const accountantService = {
     }
   },
 
-  // ==================== ACCOUNT METHODS ====================
+  // ==================== ACCOUNT METHODS ===================
+
+// Seed standard chart of accounts
+seedChartOfAccounts: async () => {
+  try {
+    console.log('🌱 Seeding standard chart of accounts...');
+    const response = await api.post('/accounting/seed-chart-of-accounts');
+    return response.data;
+  } catch (error) {
+    console.error('Error seeding chart of accounts:', error);
+    throw error;
+  }
+},
+
   createAccount: async (data) => {
     try {
       console.log('📊 Creating account...', data);
@@ -263,16 +276,73 @@ export const accountantService = {
   },
 
   // ==================== CHART OF ACCOUNTS METHODS ====================
-  getChartOfAccounts: async () => {
-    try {
-      console.log('📊 Fetching chart of accounts...');
-      const response = await api.get('/accounting/chart-of-accounts');
+ // services/accountant.js - Add/Update this method
+
+getChartOfAccounts: async () => {
+  try {
+    console.log('📊 Fetching chart of accounts...');
+    const response = await api.get('/accounting/chart-of-accounts');
+    console.log('📊 Full response:', response);
+    console.log('📊 Response data:', response.data);
+    
+    // Check if we got the expected structure
+    if (response.data && response.data.chart_of_accounts) {
+      console.log('✅ Chart of accounts loaded from API');
       return response.data;
-    } catch (error) {
-      console.error('Error fetching chart of accounts:', error);
-      throw error;
+    } else if (response.data && response.data.accounts) {
+      // If the API returns accounts array instead, convert it
+      console.log('📊 API returned accounts array, converting...');
+      const accounts = response.data.accounts;
+      const chart_of_accounts = {
+        ASSET: accounts.filter(a => a.account_type === 'ASSET'),
+        LIABILITY: accounts.filter(a => a.account_type === 'LIABILITY'),
+        EQUITY: accounts.filter(a => a.account_type === 'EQUITY'),
+        REVENUE: accounts.filter(a => a.account_type === 'REVENUE'),
+        EXPENSE: accounts.filter(a => a.account_type === 'EXPENSE')
+      };
+      return {
+        chart_of_accounts: chart_of_accounts,
+        total_accounts: accounts.length
+      };
+    } else {
+      console.error('Unexpected API response format:', response.data);
+      throw new Error('Invalid API response format');
     }
-  },
+  } catch (error) {
+    console.error('Error fetching chart of accounts:', error);
+    // Fallback to standard chart of accounts from constants
+    console.log('📊 Falling back to standard chart of accounts from constants');
+    const { STANDARD_CHART_OF_ACCOUNTS } = await import('../constants/chartOfAccounts');
+    return {
+      chart_of_accounts: STANDARD_CHART_OF_ACCOUNTS,
+      total_accounts: Object.values(STANDARD_CHART_OF_ACCOUNTS).reduce(
+        (sum, arr) => sum + arr.length, 0
+      )
+    };
+  }
+},
+
+// services/accountant.js - Add this debug method
+
+debugChartOfAccounts: async () => {
+  try {
+    const response = await api.get('/accounting/chart-of-accounts');
+    console.log('🔍 DEBUG - Chart of Accounts Response:');
+    console.log('  Status:', response.status);
+    console.log('  Total accounts:', response.data?.total_accounts);
+    console.log('  Has chart_of_accounts:', !!response.data?.chart_of_accounts);
+    if (response.data?.chart_of_accounts) {
+      console.log('  Accounts by type:');
+      for (const [type, accounts] of Object.entries(response.data.chart_of_accounts)) {
+        console.log(`    ${type}: ${accounts.length} accounts`);
+      }
+    }
+    return response.data;
+  } catch (error) {
+    console.error('🔍 DEBUG - Error:', error);
+    throw error;
+  }
+},
 
   getChartOfAccountsGrouped: async () => {
     try {
