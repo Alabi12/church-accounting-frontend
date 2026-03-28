@@ -1,6 +1,6 @@
 // pages/Accountant/ChartOfAccountsForm.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   XCircleIcon,
@@ -12,19 +12,29 @@ import {
   BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
-import { STANDARD_CHART_OF_ACCOUNTS, getNextAccountCode, getAccountTypeColor, getAccountTypeName } from '../../constants/chartOfAccounts';
+import { 
+  STANDARD_CHART_OF_ACCOUNTS, 
+  getNextAccountCode, 
+  getAccountTypeColor, 
+  getAccountTypeName 
+} from '../../constants/chartOfAccounts';
 import toast from 'react-hot-toast';
 
 const ChartOfAccountsForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const suggestedType = location.state?.suggestedType;
+  const suggestedCode = location.state?.suggestedCode;
+  const suggestedName = location.state?.suggestedName;
+  
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(!!id);
   const [formData, setFormData] = useState({
-    code: '',
-    name: '',
+    code: suggestedCode || '',
+    name: suggestedName || '',
     displayName: '',
-    type: 'ASSET',
+    type: suggestedType || 'ASSET',
     category: '',
     subCategory: '',
     description: '',
@@ -53,60 +63,43 @@ const ChartOfAccountsForm = () => {
     { id: 'credit', name: 'Credit', description: 'Increases with credit entries' }
   ];
 
-  // Load account data if in edit mode
+  const generateAccountCode = async (type) => {
+    try {
+      const response = await accountantService.getAccounts();
+      const existingAccounts = response.accounts || response.data?.accounts || [];
+      const nextCode = getNextAccountCode(type, existingAccounts);
+      setFormData(prev => ({ ...prev, code: nextCode }));
+    } catch (error) {
+      console.error('Error generating account code:', error);
+      let baseCode = '';
+      switch(type) {
+        case 'ASSET': baseCode = '1010'; break;
+        case 'LIABILITY': baseCode = '2010'; break;
+        case 'EQUITY': baseCode = '3010'; break;
+        case 'REVENUE': baseCode = '4010'; break;
+        case 'EXPENSE': baseCode = '5010'; break;
+        default: baseCode = '9010';
+      }
+      setFormData(prev => ({ ...prev, code: baseCode }));
+    }
+  };
+
   useEffect(() => {
     if (id) {
       loadAccountData();
     }
     fetchParentAccounts();
     
-    // Auto-generate account code for new accounts
     if (!id && !formData.code) {
       generateAccountCode(formData.type);
     }
   }, [id]);
 
-  // Generate account code when type changes for new accounts
   useEffect(() => {
     if (!id && formData.type) {
       generateAccountCode(formData.type);
     }
   }, [formData.type, id]);
-
-  const generateAccountCode = (type) => {
-    // Get existing accounts of this type
-    const existingCodes = STANDARD_CHART_OF_ACCOUNTS[type]?.map(acc => acc.code) || [];
-    
-    // Find the next available code
-    let baseCode = '';
-    switch(type) {
-      case 'ASSET': baseCode = '1'; break;
-      case 'LIABILITY': baseCode = '2'; break;
-      case 'EQUITY': baseCode = '3'; break;
-      case 'REVENUE': baseCode = '4'; break;
-      case 'EXPENSE': baseCode = '5'; break;
-      default: baseCode = '9';
-    }
-    
-    // Find max code number in this type
-    let maxNumber = 0;
-    existingCodes.forEach(code => {
-      if (code.startsWith(baseCode)) {
-        const num = parseInt(code);
-        if (!isNaN(num) && num > maxNumber) {
-          maxNumber = num;
-        }
-      }
-    });
-    
-    // If no existing codes, start from baseCode + 10
-    if (maxNumber === 0) {
-      maxNumber = parseInt(baseCode + '10');
-    }
-    
-    const nextCode = (maxNumber + 1).toString();
-    setFormData(prev => ({ ...prev, code: nextCode }));
-  };
 
   const loadAccountData = async () => {
     try {
@@ -142,7 +135,7 @@ const ChartOfAccountsForm = () => {
   const fetchParentAccounts = async () => {
     try {
       const response = await accountantService.getAccounts();
-      const accountsList = response.accounts || response.data?.accounts || response || [];
+      const accountsList = response.accounts || response.data?.accounts || [];
       const parents = accountsList.filter(acc => 
         (acc.level === 1 || !acc.parent_account_id) && 
         (!id || acc.id !== parseInt(id))
@@ -158,8 +151,6 @@ const ChartOfAccountsForm = () => {
     
     if (!formData.code.trim()) {
       newErrors.code = 'Account code is required';
-    } else if (!/^\d{4}$/.test(formData.code) && !/^\d{4}-\d{2,4}$/.test(formData.code)) {
-      newErrors.code = 'Account code should be in format: 4 digits (e.g., 4010) or with sub-account (e.g., 4010-01)';
     }
     
     if (!formData.name.trim()) {
@@ -168,14 +159,6 @@ const ChartOfAccountsForm = () => {
     
     if (!formData.type) {
       newErrors.type = 'Account type is required';
-    }
-    
-    if (formData.level === 1 && formData.parentAccountId) {
-      newErrors.parentAccountId = 'Level 1 accounts cannot have a parent account';
-    }
-    
-    if (formData.level > 1 && !formData.parentAccountId) {
-      newErrors.parentAccountId = 'Sub-accounts require a parent account';
     }
     
     setErrors(newErrors);
@@ -274,15 +257,11 @@ const ChartOfAccountsForm = () => {
                 {id ? 'Update account details' : 'Add a new account to the chart of accounts'}
               </p>
             </div>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-500"
-            >
+            <button onClick={handleClose} className="text-gray-400 hover:text-gray-500">
               <XCircleIcon className="h-6 w-6" />
             </button>
           </div>
 
-          {/* Selected Type Indicator */}
           <div className={`mb-6 p-3 rounded-lg border ${getTypeColorClass(formData.type)}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -308,15 +287,10 @@ const ChartOfAccountsForm = () => {
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                   className={`w-full px-3 py-2 border rounded-md ${errors.code ? 'border-red-500' : 'border-gray-300'}`}
-                  placeholder="e.g., 4010 or 4010-01"
+                  placeholder="e.g., 4010"
                   disabled={!!id}
                 />
                 {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code}</p>}
-                {!id && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Auto-generated based on account type. You can modify it.
-                  </p>
-                )}
               </div>
 
               <div>
@@ -403,56 +377,16 @@ const ChartOfAccountsForm = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Level</label>
-                <select
-                  value={formData.level}
-                  onChange={(e) => setFormData({ ...formData, level: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  disabled={!!id}
-                >
-                  <option value={1}>Level 1 - Main Account</option>
-                  <option value={2}>Level 2 - Sub Account</option>
-                  <option value={3}>Level 3 - Detailed Account</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Parent Account</label>
-                <select
-                  value={formData.parentAccountId || ''}
-                  onChange={(e) => setFormData({ ...formData, parentAccountId: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  disabled={formData.level === 1}
-                >
-                  <option value="">None (Top Level Account)</option>
-                  {parentAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.account_code} - {acc.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.parentAccountId && <p className="text-xs text-red-500 mt-1">{errors.parentAccountId}</p>}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
                 <label className="block text-sm font-medium mb-1">Normal Balance</label>
                 <select
                   value={formData.normalBalance}
                   onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  disabled={!!id}
                 >
                   {normalBalanceOptions.map(option => (
                     <option key={option.id} value={option.id}>{option.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">
-                  {formData.normalBalance === 'debit' 
-                    ? 'Account increases with debit entries' 
-                    : 'Account increases with credit entries'}
-                </p>
               </div>
 
               <div>
@@ -464,7 +398,6 @@ const ChartOfAccountsForm = () => {
                   onChange={(e) => setFormData({ ...formData, openingBalance: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   placeholder="0.00"
-                  disabled={!!id}
                 />
               </div>
             </div>
@@ -476,7 +409,6 @@ const ChartOfAccountsForm = () => {
                   checked={formData.isContra}
                   onChange={(e) => setFormData({ ...formData, isContra: e.target.checked })}
                   className="h-4 w-4 text-green-600 rounded"
-                  disabled={!!id}
                 />
                 <span className="ml-2 text-sm">Is Contra Account</span>
               </label>
@@ -517,7 +449,6 @@ const ChartOfAccountsForm = () => {
             </div>
           </form>
 
-          {/* Standard Account Reference */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <h4 className="text-sm font-semibold text-blue-800 mb-2">Standard Account Reference</h4>
             <p className="text-xs text-blue-700 mb-2">

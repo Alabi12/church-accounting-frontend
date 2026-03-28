@@ -21,7 +21,6 @@ import {
   BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
-import { approvalService } from '../../services/approval';
 import AsyncSelect from 'react-select/async';
 import toast from 'react-hot-toast';
 
@@ -108,7 +107,8 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
       setLoading(true);
       const response = await accountantService.getChartOfAccounts();
       
-      // Flatten all accounts into a single array
+      console.log('📊 Chart of Accounts Response:', response);
+      
       const allAccounts = [
         ...(response.chart_of_accounts?.ASSET || []),
         ...(response.chart_of_accounts?.LIABILITY || []),
@@ -117,7 +117,6 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
         ...(response.chart_of_accounts?.EXPENSE || [])
       ];
       
-      // Group by type for modal
       const byType = {
         ASSET: response.chart_of_accounts?.ASSET || [],
         LIABILITY: response.chart_of_accounts?.LIABILITY || [],
@@ -185,7 +184,6 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
     }));
   };
 
-  // Modal functions
   const openAccountModal = (index) => {
     setSelectedLineIndex(index);
     setModalSearchTerm('');
@@ -213,7 +211,6 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
       newLines[selectedLineIndex].account_id = account.id;
       setFormData({ ...formData, lines: newLines });
       
-      // Auto-focus on debit/credit based on account type
       const normalBalance = account.normal_balance || 
         (account.account_type === 'ASSET' || account.account_type === 'EXPENSE' ? 'debit' : 'credit');
       
@@ -264,30 +261,24 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
     
     setTotals({ debit, credit });
     setLocalBalanced(Math.abs(debit - credit) < 0.01);
-    
-    console.log('🧮 Calculated totals:', { debit, credit, balanced: Math.abs(debit - credit) < 0.01 });
   };
 
   const validateForm = () => {
     const errors = [];
 
-    // Check date
     if (!formData.entry_date) {
       errors.push('Entry date is required');
     }
 
-    // Check description
     if (!formData.description.trim()) {
       errors.push('Description is required');
     }
 
-    // Check if any line has an account selected
     const hasAccount = formData.lines.some(line => line.account_id);
     if (!hasAccount) {
       errors.push('At least one account must be selected');
     }
 
-    // Check if there's at least one debit and one credit
     const hasDebit = formData.lines.some(line => parseFloat(line.debit) > 0);
     const hasCredit = formData.lines.some(line => parseFloat(line.credit) > 0);
     
@@ -295,28 +286,23 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
       errors.push('Journal entry must have at least one debit and one credit line');
     }
 
-    // Validate each line
     formData.lines.forEach((line, index) => {
       if (line.account_id) {
         const debit = parseFloat(line.debit) || 0;
         const credit = parseFloat(line.credit) || 0;
         
-        // Check if line has amount
         if (debit === 0 && credit === 0) {
           errors.push(`Line ${index + 1}: Please enter either debit or credit amount`);
         }
         
-        // Check if line has both debit and credit
         if (debit > 0 && credit > 0) {
           errors.push(`Line ${index + 1}: Cannot have both debit and credit`);
         }
       } else if (parseFloat(line.debit) > 0 || parseFloat(line.credit) > 0) {
-        // If there's an amount but no account selected
         errors.push(`Line ${index + 1}: Please select an account for this amount`);
       }
     });
 
-    // Check if entry is balanced
     if (!localBalanced) {
       errors.push(`Entry does not balance: Debits (${totals.debit.toFixed(2)}) must equal Credits (${totals.credit.toFixed(2)})`);
     }
@@ -328,14 +314,11 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
   const handleLineChange = (index, field, value) => {
     const newLines = [...formData.lines];
     
-    // Handle account_id change
     if (field === 'account_id') {
       newLines[index][field] = value;
     } else {
-      // Handle amount changes
       newLines[index][field] = value;
       
-      // Clear opposite field when amount is entered (double-entry principle)
       if (field === 'debit' && value) {
         newLines[index].credit = '';
       } else if (field === 'credit' && value) {
@@ -362,7 +345,6 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
     setFormData({ ...formData, lines: newLines });
   };
 
-  // Function to check line balance for warnings
   const checkLineBalance = (line) => {
     if (!line.account_id || !line.credit) return null;
     
@@ -382,97 +364,114 @@ const JournalEntryForm = ({ entry, onClose, onSuccess }) => {
     return null;
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  // Recalculate totals to ensure accuracy
-  calculateTotals();
-  
-  // Validate the form
-  if (!validateForm()) {
-    // Scroll to top to show errors
-    window.scrollTo(0, 0);
-    return;
-  }
-
-  setSubmitting(true);
-  
-  try {
-    // Filter out lines without accounts or amounts
-    const validLines = formData.lines
-      .filter(line => line.account_id && (parseFloat(line.debit) > 0 || parseFloat(line.credit) > 0))
-      .map(line => ({
-        account_id: line.account_id,
-        debit: parseFloat(line.debit) || 0,
-        credit: parseFloat(line.credit) || 0,
-        description: line.description || ''
-      }));
-
-    // Double-check balance before submitting
-    const totalDebit = validLines.reduce((sum, l) => sum + l.debit, 0);
-    const totalCredit = validLines.reduce((sum, l) => sum + l.credit, 0);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
-      toast.error(`Balance check failed: Debits (${totalDebit.toFixed(2)}) ≠ Credits (${totalCredit.toFixed(2)})`);
-      setSubmitting(false);
+    calculateTotals();
+    
+    if (!validateForm()) {
+      window.scrollTo(0, 0);
       return;
     }
 
-    // Prepare the data for submission - IMPORTANT: DO NOT include notes field
-    const submitData = {
-      entry_date: formData.entry_date,
-      description: formData.description.trim(),
-      reference: formData.reference || '',
-      // notes: formData.notes || '',  // <-- MAKE SURE THIS IS COMMENTED OUT OR REMOVED
-      lines: validLines,
-      submit_for_approval: submitForApproval
-    };
+    setSubmitting(true);
+    
+    try {
+      const validLines = formData.lines
+        .filter(line => line.account_id && (parseFloat(line.debit) > 0 || parseFloat(line.credit) > 0))
+        .map(line => ({
+          account_id: line.account_id,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+          description: line.description || ''
+        }));
 
-    console.log('📤 Submitting journal entry:', JSON.stringify(submitData, null, 2));
+      const submitData = {
+        entry_date: formData.entry_date,
+        description: formData.description.trim(),
+        reference: formData.reference || '',
+        lines: validLines,
+        submit_for_approval: submitForApproval
+      };
 
-    let response;
-    
-    if (entry) {
-      response = await accountantService.updateJournalEntry(entry.id, submitData);
-      toast.success(submitForApproval ? 'Entry updated and submitted for approval' : 'Journal entry updated successfully');
-    } else {
-      response = await accountantService.createJournalEntry(submitData);
-      toast.success(submitForApproval ? 'Journal entry created and submitted for approval' : 'Journal entry saved as draft');
-    }
-    
-    console.log('✅ Response:', response);
-    onSuccess();
-    
-  } catch (error) {
-    console.error('❌ Error saving journal entry:', error);
-    
-    // Log the full error details
-    if (error.response) {
-      console.error('Error status:', error.response.status);
-      console.error('Error data:', error.response.data);
-      console.error('Error headers:', error.response.headers);
-      
-      // Check for insufficient funds error
-      if (error.response.data?.code === 'INSUFFICIENT_FUNDS') {
-        const details = error.response.data.details || [];
-        setFundsErrors(details);
-        setShowFundsModal(true);
-        toast.error('Insufficient funds for this transaction');
+      let response;
+      if (entry) {
+        response = await accountantService.updateJournalEntry(entry.id, submitData);
+        toast.success(submitForApproval ? 'Entry updated and submitted for approval' : 'Journal entry updated successfully');
       } else {
-        const errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to save journal entry';
-        toast.error(errorMessage);
+        response = await accountantService.createJournalEntry(submitData);
+        toast.success(submitForApproval ? 'Journal entry created and submitted for approval' : 'Journal entry saved as draft');
       }
-    } else if (error.request) {
-      console.error('Error request:', error.request);
-      toast.error('No response from server');
-    } else {
-      console.error('Error message:', error.message);
-      toast.error('Error: ' + error.message);
+      
+      onSuccess();
+    } catch (error) {
+      console.error('❌ Error saving journal entry:', error);
+      
+      if (error.response) {
+        if (error.response.data?.code === 'INSUFFICIENT_FUNDS') {
+          const details = error.response.data.details || [];
+          setFundsErrors(details);
+          setShowFundsModal(true);
+          toast.error('Insufficient funds for this transaction');
+        } else {
+          const errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to save journal entry';
+          toast.error(errorMessage);
+        }
+      } else if (error.request) {
+        toast.error('No response from server');
+      } else {
+        toast.error('Error: ' + error.message);
+      }
+    } finally {
+      setSubmitting(false);
     }
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
+
+  const handleSubmitForApproval = async () => {
+    calculateTotals();
+    
+    if (!validateForm()) {
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    setSubmitting(true);
+    
+    try {
+      const validLines = formData.lines
+        .filter(line => line.account_id && (parseFloat(line.debit) > 0 || parseFloat(line.credit) > 0))
+        .map(line => ({
+          account_id: line.account_id,
+          debit: parseFloat(line.debit) || 0,
+          credit: parseFloat(line.credit) || 0,
+          description: line.description || ''
+        }));
+
+      const submitData = {
+        entry_date: formData.entry_date,
+        description: formData.description.trim(),
+        reference: formData.reference || '',
+        notes: formData.notes || '',
+        lines: validLines,
+        submit_for_approval: true
+      };
+
+      console.log('📤 Submitting for approval:', submitData);
+      
+      await accountantService.updateJournalEntry(entry.id, submitData);
+      toast.success('Journal entry submitted for approval');
+      onSuccess();
+    } catch (error) {
+      console.error('❌ Error submitting for approval:', error);
+      if (error.response) {
+        toast.error(error.response.data?.error || 'Failed to submit for approval');
+      } else {
+        toast.error('Failed to submit for approval');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const getSubmitButtonText = () => {
     if (!entry) {
@@ -519,6 +518,31 @@ const handleSubmit = async (e) => {
             <XCircleIcon className="h-6 w-6 text-gray-400 hover:text-gray-500" />
           </button>
         </div>
+
+        {/* Status Display for Existing Entries */}
+        {entry && (
+          <div className={`mb-4 p-3 rounded-lg border ${
+            entry.status === 'POSTED' ? 'bg-green-50 border-green-200' : 
+            entry.status === 'PENDING' ? 'bg-yellow-50 border-yellow-200' : 
+            entry.status === 'DRAFT' ? 'bg-gray-50 border-gray-200' : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center">
+              {entry.status === 'POSTED' && <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />}
+              {entry.status === 'PENDING' && <ClockIcon className="h-5 w-5 text-yellow-600 mr-2" />}
+              {entry.status === 'DRAFT' && <ArrowPathIcon className="h-5 w-5 text-gray-600 mr-2" />}
+              <span className="font-medium">Status: {entry.status}</span>
+            </div>
+            {entry.status === 'PENDING' && (
+              <p className="text-sm text-yellow-700 mt-1">Waiting for treasurer approval</p>
+            )}
+            {entry.status === 'POSTED' && (
+              <p className="text-sm text-green-700 mt-1">Entry has been posted to the ledger</p>
+            )}
+            {entry.status === 'DRAFT' && (
+              <p className="text-sm text-gray-600 mt-1">This entry is in draft mode. Edit and submit for approval when ready.</p>
+            )}
+          </div>
+        )}
 
         {/* Account Types Summary */}
         <div className="grid grid-cols-5 gap-2 mb-4">
@@ -717,7 +741,6 @@ const handleSubmit = async (e) => {
                     )}
                   </div>
                   
-                  {/* Balance warning message */}
                   {balanceWarning && (
                     <div className="col-span-12 text-xs text-red-600 mt-1">
                       ⚠️ {balanceWarning.message}
@@ -727,7 +750,6 @@ const handleSubmit = async (e) => {
               );
             })}
 
-            {/* Add Line Button */}
             {isEditable && (
               <button
                 type="button"
@@ -767,7 +789,7 @@ const handleSubmit = async (e) => {
           </div>
 
           {/* Submit for Approval Checkbox */}
-          {isEditable && (
+          {isEditable && entry?.status !== 'POSTED' && (
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -792,7 +814,7 @@ const handleSubmit = async (e) => {
               Cancel
             </button>
 
-            {isEditable && (
+            {isEditable && entry?.status !== 'POSTED' && (
               <button
                 type="submit"
                 disabled={submitting || !localBalanced}
@@ -809,10 +831,38 @@ const handleSubmit = async (e) => {
               </button>
             )}
 
+            {entry?.status === 'DRAFT' && (
+              <button
+                type="button"
+                onClick={handleSubmitForApproval}
+                disabled={submitting || !localBalanced}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
+              >
+                {submitting ? (
+                  <span className="flex items-center">
+                    <ArrowPathIcon className="animate-spin h-4 w-4 mr-2" />
+                    Submitting...
+                  </span>
+                ) : (
+                  <>
+                    <ClockIcon className="h-4 w-4 mr-2" />
+                    Submit for Approval
+                  </>
+                )}
+              </button>
+            )}
+
             {entry?.status === 'PENDING' && (
               <div className="px-4 py-2 bg-yellow-50 text-yellow-700 rounded-md flex items-center">
                 <ClockIcon className="h-4 w-4 mr-2" />
                 Pending Approval
+              </div>
+            )}
+
+            {entry?.status === 'POSTED' && (
+              <div className="px-4 py-2 bg-green-50 text-green-700 rounded-md flex items-center">
+                <CheckCircleIcon className="h-4 w-4 mr-2" />
+                Posted
               </div>
             )}
           </div>
@@ -836,7 +886,6 @@ const handleSubmit = async (e) => {
               </button>
             </div>
 
-            {/* Type Filter Tabs */}
             <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
               <button
                 onClick={() => setSelectedType(null)}
@@ -861,7 +910,6 @@ const handleSubmit = async (e) => {
               ))}
             </div>
 
-            {/* Search */}
             <div className="mb-4">
               <div className="relative">
                 <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
@@ -876,7 +924,6 @@ const handleSubmit = async (e) => {
               </div>
             </div>
 
-            {/* Account List */}
             <div className="overflow-y-auto max-h-[50vh] border rounded-lg">
               {Object.entries(getFilteredAccounts())
                 .filter(([type]) => !selectedType || type === selectedType)

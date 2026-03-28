@@ -96,7 +96,7 @@ import FinancialOverview from './pages/Treasurer/FinancialOverview';
 import BudgetList from './pages/Treasurer/BudgetList';
 import BudgetForm from './pages/Treasurer/BudgetForm';
 import BudgetDetail from './pages/Treasurer/BudgetDetail';
-import BudgetVarianceReport from './pages/Treasurer/BudgetVarianceReport'; // <-- ADD THIS IMPORT
+import BudgetVarianceReport from './pages/Treasurer/BudgetVarianceReport';
 
 // Finance Committee Pages
 import CommitteeDashboard from './pages/FinanceCommittee/CommitteeDashboard';
@@ -104,7 +104,7 @@ import BudgetReview from './pages/FinanceCommittee/BudgetReview';
 import FinancialReview from './pages/FinanceCommittee/FinancialReview';
 import CommitteeVoting from './pages/FinanceCommittee/CommitteeVoting';
 
-// Admin Pages
+// ========== ADMIN PAGES ==========
 import UserManagementPage from './pages/Admin/UserManagementPage';
 import AuditLogsPage from './pages/Admin/AuditLogsPage';
 import SystemSettings from './pages/Admin/SystemSettings';
@@ -112,17 +112,19 @@ import RolePermissions from './pages/Admin/RolePermissions';
 import ChurchSettings from './pages/Admin/ChurchSettings';
 import ChurchManagement from './pages/Admin/ChurchManagement';
 import ApprovalWorkflows from './pages/Admin/ApprovalWorkflows';
-
-// ========== PAYROLL PAGES ==========
-import PayrollDashboard from './pages/Payroll/PayrollDashboard';
 import EmployeeList from './pages/Payroll/EmployeeList';
 import EmployeeForm from './pages/Payroll/EmployeeForm';
 import EmployeeDetails from './pages/Payroll/EmployeeDetails';
-import PayrollProcess from './pages/Payroll/PayrollProcess';
+
+// ========== PAYROLL PAGES (Streamlined Workflow) ==========
+import PayrollDashboard from './pages/Payroll/PayrollDashboard';
+import PayrollCalculate from './pages/Payroll/PayrollCalculate';
 import PayrollRunList from './pages/Payroll/PayrollRunList';
 import PayrollRunDetails from './pages/Payroll/PayrollRunDetails';
 import PayslipList from './pages/Payroll/PayslipList';
 import PayslipView from './pages/Payroll/PayslipView';
+import GeneratePayslips from './pages/Payroll/GeneratePayslips';
+import EmailPayslips from './pages/Payroll/EmailPayslips';
 import DeductionTypes from './pages/Payroll/DeductionTypes';
 import DeductionTypeForm from './pages/Payroll/DeductionTypeForm';
 import TaxTables from './pages/Payroll/TaxTables';
@@ -142,12 +144,13 @@ import EmployeeEarnings from './pages/Reports/EmployeeEarnings';
 // Permission constants
 import { ROLES } from './utils/permissions';
 
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
@@ -155,7 +158,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
+       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SocketProvider>
             <Router>
@@ -187,590 +190,205 @@ function App() {
                             <Navbar />
                             <main className="flex-1 overflow-y-auto bg-gray-50">
                               <Routes>
-                                {/* Dashboard - accessible to all authenticated users */}
+                                {/* Dashboard */}
                                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                                 <Route path="/dashboard" element={<Dashboard />} />
 
                                 {/* Income Routes */}
                                 <Route path="/income">
-                                  <Route index element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <IncomeList />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="add" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <AddIncome />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path=":id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <IncomeDetails />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="edit/:id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <EditIncome />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route index element={<IncomeList />} />
+                                  <Route path="add" element={<AddIncome />} />
+                                  <Route path=":id" element={<IncomeDetails />} />
+                                  <Route path="edit/:id" element={<EditIncome />} />
                                 </Route>
 
                                 {/* Expenses Routes */}
                                 <Route path="/expenses">
-                                  <Route index element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <ExpenseList />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="add" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <AddExpense />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path=":id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <ExpenseDetails />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="edit/:id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <EditExpense />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route index element={<ExpenseList />} />
+                                  <Route path="add" element={<AddExpense />} />
+                                  <Route path=":id" element={<ExpenseDetails />} />
+                                  <Route path="edit/:id" element={<EditExpense />} />
                                 </Route>
 
                                 {/* Members Routes */}
                                 <Route path="/members">
-                                  <Route index element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                      <MemberList />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="add" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <AddMember />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path=":id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                      <MemberDetails />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="edit/:id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <EditMember />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path=":id/giving" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                      <MemberGiving />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route index element={<MemberList />} />
+                                  <Route path="add" element={<AddMember />} />
+                                  <Route path=":id" element={<MemberDetails />} />
+                                  <Route path="edit/:id" element={<EditMember />} />
+                                  <Route path=":id/giving" element={<MemberGiving />} />
                                 </Route>
 
                                 {/* Donations Routes */}
                                 <Route path="/donations">
-                                  <Route index element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <DonationList />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="add" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <AddDonation />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="summary" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <DonationSummary />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route index element={<DonationList />} />
+                                  <Route path="add" element={<AddDonation />} />
+                                  <Route path="summary" element={<DonationSummary />} />
                                 </Route>
 
                                 {/* Reports Routes */}
                                 <Route path="/reports">
-                                  <Route index element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <FinancialReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="financial" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <FinancialReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="tax" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <TaxReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="saved" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <SavedReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="view/:id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <ReportViewer />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Payroll Reports */}
-                                  <Route path="payroll" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <PayrollReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="tax-summary" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <TaxSummary />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="employee-earnings" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <EmployeeEarnings />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route index element={<FinancialReports />} />
+                                  <Route path="financial" element={<FinancialReports />} />
+                                  <Route path="tax" element={<TaxReports />} />
+                                  <Route path="saved" element={<SavedReports />} />
+                                  <Route path="view/:id" element={<ReportViewer />} />
+                                  <Route path="payroll" element={<PayrollReports />} />
+                                  <Route path="tax-summary" element={<TaxSummary />} />
+                                  <Route path="employee-earnings" element={<EmployeeEarnings />} />
+                                </Route>
+
+                                {/* ========== ACCOUNTANT ROUTES ========== */}
+                                <Route path="/accountant">
+                                  <Route index element={<Navigate to="/accountant/dashboard" replace />} />
+                                  <Route path="dashboard" element={<AccountantDashboard />} />
+                                  <Route path="standard-chart-of-accounts" element={<StandardChartOfAccountsView />} />
+                                  <Route path="chart-of-accounts">
+                                    <Route index element={<ChartOfAccounts />} />
+                                    <Route path="new" element={<ChartOfAccountsForm />} />
+                                    <Route path="edit/:id" element={<ChartOfAccountsForm />} />
+                                  </Route>
+                                  <Route path="journal-entries">
+                                    <Route index element={<JournalEntries />} />
+                                    <Route path="add" element={<AddJournalEntry />} />
+                                    <Route path="view/:id" element={<JournalEntryView />} />
+                                  </Route>
+                                  <Route path="pending-approvals" element={<PendingApprovals />} />
+                                  <Route path="ledger" element={<LedgerView />} />
+                                  <Route path="trial-balance" element={<TrialBalance />} />
+                                  <Route path="financial-statements" element={<FinancialStatements />} />
+                                  <Route path="account-management" element={<AccountManagement />} />
+                                  <Route path="reconciliation" element={<Reconciliation />} />
+                                  <Route path="tax-reports" element={<TaxReportsAccountant />} />
                                 </Route>
 
                                 {/* ========== PAYROLL ROUTES ========== */}
                                 <Route path="/payroll">
                                   <Route index element={<Navigate to="/payroll/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <PayrollDashboard />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route path="dashboard" element={<PayrollDashboard />} />
                                   
-                                  {/* Employee Management */}
-                                  <Route path="employees">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <EmployeeList />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="new" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <EmployeeForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path=":id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <EmployeeDetails />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <EmployeeForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                  </Route>
-                                  
-                                  {/* Payroll Processing */}
-                                  <Route path="process" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                      <PayrollProcess />
-                                    </RoleBasedRoute>
-                                  } />
+                                  {/* STEP 1: Accountant calculates payroll */}
+                                  <Route path="calculate" element={<PayrollCalculate />} />
                                   
                                   {/* Payroll Runs */}
                                   <Route path="runs">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <PayrollRunList />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path=":id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <PayrollRunDetails />
-                                      </RoleBasedRoute>
-                                    } />
+                                    <Route index element={<PayrollRunList />} />
+                                    <Route path=":id" element={<PayrollRunDetails />} />
                                   </Route>
                                   
-                                  {/* Payslips */}
+                                  {/* STEP 2: Treasurer approval (same as pending-approval) */}
+                                  <Route path="pending-approval" element={<PayrollRunList />} />
+                                  
+                                  {/* STEP 3: Accountant posts to ledger */}
+                                  <Route path="post-journal" element={<PayrollRunList />} />
+                                  
+                                  {/* Payslip Management */}
                                   <Route path="payslips">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT, ROLES.PASTOR]}>
-                                        <PayslipList />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path=":id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT, ROLES.PASTOR]}>
-                                        <PayslipView />
-                                      </RoleBasedRoute>
-                                    } />
+                                    <Route index element={<PayslipList />} />
+                                    <Route path=":id" element={<PayslipView />} />
                                   </Route>
+                                  <Route path="generate-payslips" element={<GeneratePayslips />} />
+                                  <Route path="email-payslips" element={<EmailPayslips />} />
                                   
-                                  {/* Deduction Types */}
+                                  {/* Settings */}
                                   <Route path="deduction-types">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <DeductionTypes />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="new" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <DeductionTypeForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <DeductionTypeForm />
-                                      </RoleBasedRoute>
-                                    } />
+                                    <Route index element={<DeductionTypes />} />
+                                    <Route path="new" element={<DeductionTypeForm />} />
+                                    <Route path="edit/:id" element={<DeductionTypeForm />} />
+                                  </Route>
+                                  <Route path="tax-tables">
+                                    <Route index element={<TaxTables />} />
+                                    <Route path="new" element={<TaxTableForm />} />
+                                    <Route path="edit/:id" element={<TaxTableForm />} />
+                                  </Route>
+                                </Route>
+
+                                {/* ========== ADMIN ROUTES (Employee Management moved here) ========== */}
+                                <Route path="/admin">
+                                  <Route index element={<Navigate to="/admin/users" replace />} />
+                                  
+                                  {/* Employee Management - Moved from Payroll */}
+                                  <Route path="employees">
+                                    <Route index element={<EmployeeList />} />
+                                    <Route path="new" element={<EmployeeForm />} />
+                                    <Route path=":id" element={<EmployeeDetails />} />
+                                    <Route path="edit/:id" element={<EmployeeForm />} />
                                   </Route>
                                   
-                                  {/* Tax Tables */}
-                                  <Route path="tax-tables">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <TaxTables />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="new" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <TaxTableForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.ACCOUNTANT]}>
-                                        <TaxTableForm />
-                                      </RoleBasedRoute>
-                                    } />
+                                  {/* User Management */}
+                                  <Route path="users" element={<UserManagementPage />} />
+                                  <Route path="churches" element={<ChurchManagement />} />
+                                  <Route path="audit-logs" element={<AuditLogsPage />} />
+                                  <Route path="role-permissions" element={<RolePermissions />} />
+                                  <Route path="system-settings" element={<SystemSettings />} />
+                                  <Route path="church-settings" element={<ChurchSettings />} />
+                                  <Route path="approval-workflows" element={<ApprovalWorkflows />} />
+                                </Route>
+
+                                {/* ========== TREASURER ROUTES ========== */}
+                                <Route path="/treasurer">
+                                  <Route index element={<Navigate to="/treasurer/dashboard" replace />} />
+                                  <Route path="dashboard" element={<TreasurerDashboard />} />
+                                  <Route path="budgets">
+                                    <Route index element={<BudgetList />} />
+                                    <Route path="create" element={<BudgetForm />} />
+                                    <Route path=":id" element={<BudgetDetail />} />
+                                    <Route path="edit/:id" element={<BudgetForm />} />
                                   </Route>
+                                  <Route path="budget-variance" element={<BudgetVarianceReport />} />
+                                  <Route path="transaction-approvals" element={<TransactionApprovals />} />
+                                  <Route path="expense-approvals" element={<ExpenseApprovalsTreasurer />} />
+                                  <Route path="cash-flow" element={<CashFlow />} />
+                                  <Route path="financial-overview" element={<FinancialOverview />} />
+                                </Route>
+
+                                {/* ========== AUDITOR ROUTES ========== */}
+                                <Route path="/auditor">
+                                  <Route index element={<Navigate to="/auditor/dashboard" replace />} />
+                                  <Route path="dashboard" element={<AuditorDashboard />} />
+                                  <Route path="review" element={<AuditReview />} />
+                                  <Route path="reports" element={<AuditReports />} />
+                                  <Route path="compliance" element={<ComplianceCheck />} />
+                                </Route>
+
+                                {/* ========== PASTOR ROUTES ========== */}
+                                <Route path="/pastor">
+                                  <Route index element={<Navigate to="/pastor/dashboard" replace />} />
+                                  <Route path="dashboard" element={<PastorDashboard />} />
+                                  <Route path="budget-approvals" element={<BudgetApprovals />} />
+                                  <Route path="budgets/:id" element={<BudgetDetails />} />
+                                  <Route path="active-budgets" element={<ActiveBudgets />} />
+                                  <Route path="expense-approvals" element={<ExpenseApprovals />} />
+                                  <Route path="member-giving" element={<MemberGivingPastor />} />
+                                  <Route path="ministry-reports" element={<MinistryReports />} />
+                                </Route>
+
+                                {/* ========== FINANCE COMMITTEE ROUTES ========== */}
+                                <Route path="/committee">
+                                  <Route index element={<Navigate to="/committee/dashboard" replace />} />
+                                  <Route path="dashboard" element={<CommitteeDashboard />} />
+                                  <Route path="budget-review" element={<BudgetReview />} />
+                                  <Route path="financial-review" element={<FinancialReview />} />
+                                  <Route path="voting" element={<CommitteeVoting />} />
                                 </Route>
 
                                 {/* ========== LEAVE ROUTES ========== */}
                                 <Route path="/leave">
                                   <Route index element={<Navigate to="/leave/requests" replace />} />
                                   <Route path="requests">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                        <LeaveRequests />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="new" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                        <LeaveRequestForm />
-                                      </RoleBasedRoute>
-                                    } />
+                                    <Route index element={<LeaveRequests />} />
+                                    <Route path="new" element={<LeaveRequestForm />} />
                                   </Route>
-                                  <Route path="balances" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                      <LeaveBalances />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="calendar" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER, ROLES.PASTOR]}>
-                                      <LeaveCalendar />
-                                    </RoleBasedRoute>
-                                  } />
+                                  <Route path="balances" element={<LeaveBalances />} />
+                                  <Route path="calendar" element={<LeaveCalendar />} />
                                 </Route>
 
-                                {/* Profile Route - always accessible */}
+                                {/* Profile & Settings */}
                                 <Route path="/profile" element={<ProfilePage />} />
-
-                                {/* Settings Routes */}
                                 <Route path="/settings">
                                   <Route index element={<SystemSettings />} />
                                   <Route path="notifications" element={<div>Notifications Settings</div>} />
                                   <Route path="security" element={<div>Security Settings</div>} />
-                                </Route>
-
-                                {/* ========== ACCOUNTANT ROUTES ========== */}
-                                <Route path="/accountant">
-                                  <Route index element={<Navigate to="/accountant/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <AccountantDashboard />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Standard Chart of Accounts View */}
-                                  <Route path="standard-chart-of-accounts" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <StandardChartOfAccountsView />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Chart of Accounts with Full CRUD */}
-                                  <Route path="chart-of-accounts">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <ChartOfAccounts />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="new" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <ChartOfAccountsForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <ChartOfAccountsForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                  </Route>
-                                  
-                                  {/* Journal Entries */}
-                                  <Route path="journal-entries">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <JournalEntries />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="add" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <AddJournalEntry />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <AddJournalEntry />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="view/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                        <JournalEntryView />
-                                      </RoleBasedRoute>
-                                    } />
-                                  </Route>
-                                  
-                                  {/* Pending Approvals */}
-                                  <Route path="pending-approvals" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <PendingApprovals />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Ledger */}
-                                  <Route path="ledger" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <LedgerView />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Trial Balance */}
-                                  <Route path="trial-balance" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <TrialBalance />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Financial Statements */}
-                                  <Route path="financial-statements" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <FinancialStatements />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Account Management */}
-                                  <Route path="account-management" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <AccountManagement />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Reconciliation */}
-                                  <Route path="reconciliation" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <Reconciliation />
-                                    </RoleBasedRoute>
-                                  } />
-                                  
-                                  {/* Tax Reports */}
-                                  <Route path="tax-reports" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.ACCOUNTANT]}>
-                                      <TaxReportsAccountant />
-                                    </RoleBasedRoute>
-                                  } />
-                                </Route>
-
-                                {/* ========== TREASURER ROUTES ========== */}
-                                <Route path="/treasurer">
-                                  <Route index element={<Navigate to="/treasurer/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <TreasurerDashboard />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="budgets">
-                                    <Route index element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                        <BudgetList />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="create" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                        <BudgetForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path=":id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                        <BudgetDetail />
-                                      </RoleBasedRoute>
-                                    } />
-                                    <Route path="edit/:id" element={
-                                      <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                        <BudgetForm />
-                                      </RoleBasedRoute>
-                                    } />
-                                  </Route>
-                                  <Route path="budget-variance" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <BudgetVarianceReport />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="transaction-approvals" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <TransactionApprovals />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="expense-approvals" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <ExpenseApprovalsTreasurer />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="cash-flow" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <CashFlow />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="financial-overview" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.TREASURER]}>
-                                      <FinancialOverview />
-                                    </RoleBasedRoute>
-                                  } />
-                                </Route>
-
-                                {/* ========== AUDITOR ROUTES ========== */}
-                                <Route path="/auditor">
-                                  <Route index element={<Navigate to="/auditor/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.AUDITOR]}>
-                                      <AuditorDashboard />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="review" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.AUDITOR]}>
-                                      <AuditReview />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="reports" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.AUDITOR]}>
-                                      <AuditReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="compliance" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.AUDITOR]}>
-                                      <ComplianceCheck />
-                                    </RoleBasedRoute>
-                                  } />
-                                </Route>
-
-                                {/* ========== PASTOR ROUTES ========== */}
-                                <Route path="/pastor">
-                                  <Route index element={<Navigate to="/pastor/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <PastorDashboard />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="budget-approvals" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <BudgetApprovals />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="budgets/:id" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <BudgetDetails />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="active-budgets" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <ActiveBudgets />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="expense-approvals" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <ExpenseApprovals />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="member-giving" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <MemberGivingPastor />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="ministry-reports" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PASTOR]}>
-                                      <MinistryReports />
-                                    </RoleBasedRoute>
-                                  } />
-                                </Route>
-
-                                {/* ========== FINANCE COMMITTEE ROUTES ========== */}
-                                <Route path="/committee">
-                                  <Route index element={<Navigate to="/committee/dashboard" replace />} />
-                                  <Route path="dashboard" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.FINANCE_COMMITTEE]}>
-                                      <CommitteeDashboard />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="budget-review" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.FINANCE_COMMITTEE]}>
-                                      <BudgetReview />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="financial-review" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.FINANCE_COMMITTEE]}>
-                                      <FinancialReview />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="voting" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.FINANCE_COMMITTEE]}>
-                                      <CommitteeVoting />
-                                    </RoleBasedRoute>
-                                  } />
-                                </Route>
-
-                                {/* ========== ADMIN ROUTES ========== */}
-                                <Route path="/admin">
-                                  <Route index element={<Navigate to="/admin/users" replace />} />
-                                  <Route path="users" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}>
-                                      <UserManagementPage />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="churches" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}>
-                                      <ChurchManagement />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="audit-logs" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.AUDITOR]}>
-                                      <AuditLogsPage />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="role-permissions" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
-                                      <RolePermissions />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="system-settings" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN]}>
-                                      <SystemSettings />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="church-settings" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}>
-                                      <ChurchSettings />
-                                    </RoleBasedRoute>
-                                  } />
-                                  <Route path="approval-workflows" element={
-                                    <RoleBasedRoute allowedRoles={[ROLES.SUPER_ADMIN, ROLES.ADMIN]}>
-                                      <ApprovalWorkflows />
-                                    </RoleBasedRoute>
-                                  } />
                                 </Route>
 
                                 {/* 404 Route */}

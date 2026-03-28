@@ -2,84 +2,68 @@
 import api from './api';
 
 export const payrollService = {
-  // Employee endpoints
-  getEmployees: (params) => api.get('/payroll/employees', { params }),
+  // ==================== EMPLOYEE MANAGEMENT ====================
+  getEmployees: (params = {}) => api.get('/payroll/employees', { params }),
   getEmployee: (id) => api.get(`/payroll/employees/${id}`),
   createEmployee: (data) => api.post('/payroll/employees', data),
   updateEmployee: (id, data) => api.put(`/payroll/employees/${id}`, data),
   deleteEmployee: (id) => api.delete(`/payroll/employees/${id}`),
-
-  // Payroll processing
+  getDepartments: () => api.get('/payroll/departments'),
+  
+  // ==================== PAYROLL CALCULATION ====================
   calculatePayroll: (data) => api.post('/payroll/calculate', data),
-  processPayroll: (data) => api.post('/payroll/process', data),
-  getPayrollRuns: (params) => api.get('/payroll/payroll/runs', { params }),
-  getPayrollRun: (id) => api.get(`/payroll/payroll/${id}`),
-  approvePayroll: (id) => api.post(`/payroll/payroll/${id}/approve`),
-  rejectPayroll: (id, data) => api.post(`/payroll/payroll/${id}/reject`, data),
-  postPayrollJournal: (id) => api.post(`/payroll/payroll/${id}/post`),
-
-  // Payslip endpoints
+  
+  // ==================== PAYROLL RUNS ====================
+  getPayrollRuns: (params = {}) => api.get('/payroll/runs', { params }),
+  getPayrollRun: (id) => api.get(`/payroll/runs/${id}`),
+  initiatePayrollRun: (data) => api.post('/payroll/runs/initiate', data),
+  approvePayrollRun: (id) => api.post(`/payroll/runs/${id}/approve`),
+  rejectPayrollRun: (id, data) => api.post(`/payroll/runs/${id}/reject`, data),
+  postPayrollJournal: (id) => api.post(`/payroll/runs/${id}/post`),
+  
+  // ==================== PAYSLIPS ====================
+  getPayslips: (params = {}) => api.get('/payslip/all', { params }),
+  getPayslipsByRun: (runId) => api.get(`/payslip/run/${runId}`),
+  getEmployeePayslips: (employeeId) => api.get(`/payslip/employee/${employeeId}`),
   generatePayslips: (runId) => api.post(`/payslip/generate/${runId}`),
-
-  getPayslips: (employeeId) => {
-  if (!employeeId) {
-    // Return empty array or fetch all payslips
-    return Promise.resolve({ data: { payslips: [] } });
-    // OR if you have an endpoint for all payslips:
-    // return api.get('/payslip/all');
-  }
-  return api.get(`/payslip/employee/${employeeId}`);
-},
-
-// In payrollService.js
-getAllPayslips: () => api.get('/payslip/all'),
-getPayslips: (employeeId) => {
-  if (!employeeId) {
-    return api.get('/payslip/all');
-  }
-  return api.get(`/payslip/employee/${employeeId}`);
-},
-  getPayslip: (id) => api.get(`/payslip/${id}`),
-  downloadPayslip: (id) => api.get(`/payslip/${id}/download`, { responseType: 'blob' }),
-  signPayslip: (id, signature) => api.post(`/payslip/${id}/sign`, { signature }),
-  markPayslipViewed: (id) => api.post(`/payslip/${id}/view`),
+  downloadPayslip: (payslipId) => api.get(`/payslip/${payslipId}/download`, { responseType: 'blob' }),
   bulkEmailPayslips: (runId) => api.post(`/payslip/bulk-email/${runId}`),
-
-  // Deduction types
+  
+  // ==================== PAYROLL SETTINGS ====================
   getDeductionTypes: () => api.get('/payroll/deduction-types'),
-  createDeductionType: (data) => api.post('/payroll/deduction-types', data),
-  updateDeductionType: (id, data) => api.put(`/payroll/deduction-types/${id}`, data),
-  deleteDeductionType: (id) => api.delete(`/payroll/deduction-types/${id}`),
+  getTaxTables: () => api.get('/payroll/tax-tables'),
 
-  // Employee deductions
-  getEmployeeDeductions: (employeeId) => api.get(`/payroll/employees/${employeeId}/deductions`),
-  addEmployeeDeduction: (employeeId, data) => api.post(`/payroll/employees/${employeeId}/deductions`, data),
-  removeEmployeeDeduction: (employeeId, deductionId) => 
-    api.delete(`/payroll/employees/${employeeId}/deductions/${deductionId}`),
 
-  // Tax tables
-  getTaxTables: (params) => api.get('/tax/tables', { params }),
-  createTaxTable: (data) => api.post('/tax/tables', data),
-  updateTaxTable: (id, data) => api.put(`/tax/tables/${id}`, data),
-  deleteTaxTable: (id) => api.delete(`/tax/tables/${id}`),
-  calculateTax: (data) => api.post('/tax/calculate', data),
+    getPayrollDashboard: async () => {
+    try {
+      const response = await api.get('/payroll/dashboard');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching payroll dashboard:', error);
+      throw error;
+    }
+  },
 
-  // Reports
-  getPayrollSummary: (params) => api.get('/payroll/reports/summary', { params }),
-  getEmployeeEarnings: (params) => api.get('/payroll/reports/employee-earnings', { params }),
-  getTaxSummary: (params) => api.get('/payroll/reports/tax-summary', { params }),
+  // src/services/payrollService.js
 
-  // Dashboard
-  getPayrollDashboard: () => api.get('/payroll/dashboard'),
-};
+getTaxTables: async (year = null) => {
+  try {
+    const params = year ? { year } : {};
+    const response = await api.get('/payroll/tax-tables', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching tax tables:', error);
+    throw error;
+  }
+},
 
-// Leave service
-export const leaveService = {
-  getLeaveBalances: (params) => api.get('/leave/balances', { params }),
-  initializeLeaveBalances: (data) => api.post('/leave/balances/initialize', data),
-  getLeaveRequests: (params) => api.get('/leave/requests', { params }),
-  createLeaveRequest: (data) => api.post('/leave/requests', data),
-  approveLeaveRequest: (id) => api.post(`/leave/requests/${id}/approve`),
-  rejectLeaveRequest: (id, data) => api.post(`/leave/requests/${id}/reject`, data),
-  getLeaveCalendar: (params) => api.get('/leave/calendar', { params }),
+getDeductionTypes: async () => {
+  try {
+    const response = await api.get('/payroll/deduction-types');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching deduction types:', error);
+    throw error;
+  }
+},
 };

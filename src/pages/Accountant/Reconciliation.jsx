@@ -102,8 +102,7 @@ const Reconciliation = () => {
       if (accountsList.length > 0 && !selectedAccount) {
         setSelectedAccount(accountsList[0].id);
         setSelectedAccountDetails(accountsList[0]);
-        // Set book balance from account balance
-        setBookBalance(accountsList[0].balance || 0);
+        setBookBalance(accountsList[0].balance || accountsList[0].current_balance || 0);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
@@ -125,32 +124,29 @@ const Reconciliation = () => {
       const response = await accountantService.getReconciliationData(params);
       const data = response.data || response;
       
-      // Update account details with latest balance
       if (data.account) {
         setSelectedAccountDetails(data.account);
         setBookBalance(data.account.current_balance || data.account.balance || bookBalance);
       }
       
-      setStatementBalance(data.statementBalance || data.bankBalance || 0);
+      setStatementBalance(data.statement_balance || data.bankBalance || 0);
       
-      // Process transactions
-      const rawTransactions = data.transactions || data.items || data.unreconciled_items || [];
+      const rawTransactions = data.unreconciled_items || data.transactions || data.items || [];
       const processedTransactions = rawTransactions.map(t => ({
         id: t.id,
-        date: t.date || t.transactionDate || t.entry_date,
+        date: t.date || t.transaction_date || t.entry_date,
         description: t.description || t.narration || 'Transaction',
-        reference: t.reference || t.referenceNumber || t.checkNumber,
-        checkNumber: t.checkNumber,
+        reference: t.reference || t.reference_number || t.check_number,
+        checkNumber: t.check_number,
         type: determineTransactionType(t),
         amount: parseFloat(t.amount || t.debit || t.credit || 0),
         category: t.category || t.type || 'General',
-        reconciled: t.reconciled || t.isReconciled || false,
-        cleared: t.cleared || t.reconciled || false
+        reconciled: t.reconciled || false,
+        cleared: t.cleared || false
       }));
       
       setTransactions(processedTransactions);
       
-      // Categorize outstanding items
       const depositsInTransit = processedTransactions.filter(t => 
         !t.reconciled && t.amount > 0 && t.type === 'deposit'
       );
@@ -162,15 +158,15 @@ const Reconciliation = () => {
       setOutstandingItems({
         depositsInTransit,
         outstandingChecks,
-        bankErrors: data.bankErrors || [],
-        bookErrors: data.bookErrors || []
+        bankErrors: data.bank_errors || [],
+        bookErrors: data.book_errors || []
       });
       
-      setReconciledItems(data.reconciledItems || processedTransactions.filter(t => t.reconciled));
+      setReconciledItems(data.reconciled_items || processedTransactions.filter(t => t.reconciled));
       setAdjustments(data.differences || data.adjustments || []);
       
       calculateSummary(processedTransactions, data.differences || []);
-      calculateReconciliation();
+      calculateReconciliation(processedTransactions, data.differences || []);
       
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
@@ -192,7 +188,7 @@ const Reconciliation = () => {
   };
 
   const determineTransactionType = (transaction) => {
-    if (transaction.type === 'check' || transaction.checkNumber) return 'check';
+    if (transaction.type === 'check' || transaction.check_number) return 'check';
     if (transaction.amount > 0) return 'deposit';
     if (transaction.amount < 0) return 'withdrawal';
     if (transaction.type === 'fee') return 'fee';
@@ -214,12 +210,12 @@ const Reconciliation = () => {
     });
   };
 
-  const calculateReconciliation = () => {
-    let balance = bookBalance;
-    balance += outstandingItems.depositsInTransit.reduce((sum, d) => sum + d.amount, 0);
-    balance -= outstandingItems.outstandingChecks.reduce((sum, c) => sum + Math.abs(c.amount), 0);
-    balance += adjustments.reduce((sum, a) => sum + a.amount, 0);
+  const calculateReconciliation = (transactions, adjustments) => {
+    const depositsTotal = outstandingItems.depositsInTransit.reduce((sum, d) => sum + d.amount, 0);
+    const checksTotal = outstandingItems.outstandingChecks.reduce((sum, c) => sum + Math.abs(c.amount), 0);
+    const adjustmentsTotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
     
+    const balance = bookBalance + depositsTotal - checksTotal + adjustmentsTotal;
     setReconciledBalance(balance);
     const diff = statementBalance - balance;
     setDifference(diff);
@@ -259,7 +255,7 @@ const Reconciliation = () => {
         });
       }
       
-      calculateReconciliation();
+      calculateReconciliation(transactions, adjustments);
       toast.success('Transaction reconciled');
     } catch (error) {
       console.error('Error reconciling transaction:', error);
@@ -300,7 +296,7 @@ const Reconciliation = () => {
         });
       }
       
-      calculateReconciliation();
+      calculateReconciliation(transactions, adjustments);
       toast.success('Transaction unreconciled');
     } catch (error) {
       console.error('Error unreconciling transaction:', error);
@@ -355,7 +351,7 @@ const Reconciliation = () => {
       setAdjustmentData({ description: '', amount: '', type: 'addition', side: 'bank' });
       toast.success('Adjustment added');
       
-      calculateReconciliation();
+      calculateReconciliation(transactions, [...adjustments, { amount: signedAmount }]);
     } catch (error) {
       console.error('Error adding adjustment:', error);
       toast.error(error.response?.data?.error || 'Failed to add adjustment');
@@ -534,7 +530,7 @@ const Reconciliation = () => {
                   setSelectedAccount(id);
                   const account = accounts.find(a => a.id === id);
                   setSelectedAccountDetails(account);
-                  if (account) setBookBalance(account.balance || 0);
+                  if (account) setBookBalance(account.balance || account.current_balance || 0);
                 }}
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[rgb(31,178,86)] focus:border-transparent"
               >
@@ -542,7 +538,7 @@ const Reconciliation = () => {
                 {accounts.map(account => (
                   <option key={account.id} value={account.id}>
                     {account.name} - {account.accountNumber || account.bank || 'No ref'} 
-                    ({formatCurrency(account.balance || 0)})
+                    ({formatCurrency(account.balance || account.current_balance || 0)})
                   </option>
                 ))}
               </select>
