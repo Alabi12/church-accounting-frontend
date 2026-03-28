@@ -609,64 +609,85 @@ debugChartOfAccounts: async () => {
   },
 
   // ==================== RECONCILIATION METHODS ====================
-  getReconciliationData: async (params) => {
-    try {
-      console.log('🔄 Fetching reconciliation data...', params);
-      const queryParams = new URLSearchParams();
-      queryParams.append('accountId', params.accountId);
-      if (params.asOf) queryParams.append('asOf', params.asOf);
-      
-      const response = await api.get(`/accounting/reconciliation?${queryParams.toString()}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching reconciliation data:', error);
-      throw error;
-    }
-  },
+  // services/accountant.js - Complete reconciliation section
 
-  reconcileTransaction: async (transactionId) => {
-    try {
-      console.log(`✅ Reconciling transaction ${transactionId}...`);
-      const response = await api.post(`/accounting/reconciliation/${transactionId}/reconcile`);
-      return response.data;
-    } catch (error) {
-      console.error('Error reconciling transaction:', error);
-      throw error;
-    }
-  },
+// ==================== RECONCILIATION METHODS ====================
+getBankAccounts: async () => {
+  try {
+    console.log('🏦 Fetching bank accounts...');
+    const response = await api.get('/accounting/bank-accounts');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching bank accounts:', error);
+    return { accounts: [] };
+  }
+},
 
-  unreconcileTransaction: async (transactionId) => {
-    try {
-      console.log(`↩️ Unreconciling transaction ${transactionId}...`);
-      const response = await api.post(`/accounting/reconciliation/${transactionId}/unreconcile`);
-      return response.data;
-    } catch (error) {
-      console.error('Error unreconciling transaction:', error);
-      throw error;
-    }
-  },
+getPettyCashAccounts: async () => {
+  try {
+    console.log('💰 Fetching petty cash accounts...');
+    const response = await api.get('/accounting/petty-cash-accounts');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching petty cash accounts:', error);
+    return { accounts: [] };
+  }
+},
 
-  getBankAccounts: async () => {
-    try {
-      console.log('🏦 Fetching bank accounts...');
-      const response = await api.get('/accounting/bank-accounts');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching bank accounts:', error);
-      return { accounts: [] };
-    }
-  },
+getReconciliationData: async (params) => {
+  try {
+    console.log('🔄 Fetching reconciliation data...', params);
+    const response = await api.get('/accounting/reconciliation', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching reconciliation data:', error);
+    throw error;
+  }
+},
 
-  getPettyCashAccounts: async () => {
-    try {
-      console.log('💰 Fetching petty cash accounts...');
-      const response = await api.get('/accounting/bank-accounts');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching petty cash accounts:', error);
-      return { accounts: [] };
-    }
-  },
+getReconciliationHistory: async (params) => {
+  try {
+    console.log('📜 Fetching reconciliation history...', params);
+    const response = await api.get('/accounting/reconciliation/history', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching reconciliation history:', error);
+    return { history: [] };
+  }
+},
+
+reconcileTransaction: async (transactionId, data) => {
+  try {
+    console.log(`✅ Reconciling transaction ${transactionId}...`, data);
+    const response = await api.post(`/accounting/reconciliation/${transactionId}/reconcile`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error reconciling transaction:', error);
+    throw error;
+  }
+},
+
+unreconcileTransaction: async (transactionId) => {
+  try {
+    console.log(`↩️ Unreconciling transaction ${transactionId}...`);
+    const response = await api.post(`/accounting/reconciliation/${transactionId}/unreconcile`);
+    return response.data;
+  } catch (error) {
+    console.error('Error unreconciling transaction:', error);
+    throw error;
+  }
+},
+
+completeReconciliation: async (data) => {
+  try {
+    console.log('✅ Completing reconciliation...', data);
+    const response = await api.post('/accounting/reconciliation/complete', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error completing reconciliation:', error);
+    throw error;
+  }
+},
 
   // ==================== UTILITY METHODS ====================
   getAccountTypes: () => {
