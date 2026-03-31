@@ -1,6 +1,7 @@
+// pages/Treasurer/Dashboard.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   CurrencyDollarIcon,
   ArrowTrendingUpIcon,
@@ -20,6 +21,8 @@ import {
   CalendarIcon,
   ArrowPathIcon,
   ChevronRightIcon,
+  EyeIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import {
   BarChart,
@@ -37,6 +40,7 @@ import {
   Legend,
 } from 'recharts';
 import { accountantService } from '../services/accountant';
+import { payrollService } from '../services/payrollService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useAuth } from '../context/AuthContext';
@@ -54,6 +58,7 @@ const COLORS = {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -106,6 +111,10 @@ const Dashboard = () => {
     REVENUE: 0,
     EXPENSE: 0
   });
+  
+  // Pending approvals states
+  const [pendingPayrollRuns, setPendingPayrollRuns] = useState([]);
+  const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
 
   // Fetch all dashboard data
   const fetchDashboardData = useCallback(async (showToast = false) => {
@@ -124,15 +133,17 @@ const Dashboard = () => {
         accountBalancesData,
         alertsData,
         journalEntriesData,
-        accountsData
+        accountsData,
+        pendingPayrollData
       ] = await Promise.allSettled([
         accountantService.getDashboardStats(),
         accountantService.getRecentEntries(10),
         getMonthlyTrendData(),
         accountantService.getAccountBalances(),
         accountantService.getAlerts(),
-        accountantService.getJournalEntries({ perPage: 5 }),
-        accountantService.getAccounts({ perPage: 100 })
+        accountantService.getJournalEntries({ perPage: 5, status: 'PENDING' }),
+        accountantService.getAccounts({ perPage: 100 }),
+        payrollService.getPayrollRuns({ status: 'SUBMITTED' })
       ]);
 
       // Process Dashboard Stats
@@ -201,6 +212,7 @@ const Dashboard = () => {
         setRecentJournals(recentEntriesData.value.entries || recentEntriesData.value || []);
       } else if (journalEntriesData.status === 'fulfilled' && journalEntriesData.value) {
         const entries = journalEntriesData.value.entries || journalEntriesData.value.items || [];
+        setPendingJournalEntries(entries.filter(e => e.status === 'PENDING'));
         setRecentJournals(entries.slice(0, 5));
       }
 
@@ -239,6 +251,30 @@ const Dashboard = () => {
         setAlerts(alertsData.value.alerts || []);
       }
 
+      // Process Pending Payroll Runs
+      if (pendingPayrollData.status === 'fulfilled' && pendingPayrollData.value) {
+        const runs = pendingPayrollData.value.runs || [];
+        const formattedRuns = runs.map(run => ({
+          id: run.id,
+          runNumber: run.run_number,
+          periodStart: run.period_start,
+          periodEnd: run.period_end,
+          totalGross: run.total_gross,
+          totalNet: run.total_net,
+          employeeCount: run.employee_count,
+          status: run.status,
+          submittedBy: run.submitted_by_name || run.created_by_name || 'Accountant',
+          submittedAt: run.submitted_at || run.created_at
+        }));
+        setPendingPayrollRuns(formattedRuns);
+        
+        // Update pending count to include payroll runs
+        setStats(prev => ({
+          ...prev,
+          pendingCount: (prev.pendingCount || 0) + formattedRuns.length
+        }));
+      }
+
       if (showToast) {
         toast.success('Dashboard refreshed');
       }
@@ -250,7 +286,7 @@ const Dashboard = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedTimeframe]);
 
   const getMonthlyTrendData = async () => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -286,6 +322,52 @@ const Dashboard = () => {
 
   const handleRefresh = () => {
     fetchDashboardData(true);
+  };
+
+  const handleApprovePayroll = async (runId) => {
+    if (!window.confirm('Approve this payroll run?')) return;
+    try {
+      await payrollService.approvePayrollRun(runId);
+      toast.success('Payroll run approved successfully');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve payroll run');
+    }
+  };
+
+  const handleRejectPayroll = async (runId) => {
+    const reason = prompt('Please enter reason for rejection:');
+    if (!reason) return;
+    try {
+      await payrollService.rejectPayrollRun(runId, { reason });
+      toast.success('Payroll run rejected');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject payroll run');
+    }
+  };
+
+  const handleApproveJournal = async (entryId) => {
+    if (!window.confirm('Approve this journal entry?')) return;
+    try {
+      await accountantService.approveJournalEntry(entryId);
+      toast.success('Journal entry approved successfully');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve journal entry');
+    }
+  };
+
+  const handleRejectJournal = async (entryId) => {
+    const reason = prompt('Please enter reason for rejection:');
+    if (!reason) return;
+    try {
+      await accountantService.rejectJournalEntry(entryId, { reason });
+      toast.success('Journal entry rejected');
+      fetchDashboardData(true);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject journal entry');
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -360,6 +442,8 @@ const Dashboard = () => {
     return <LoadingSpinner fullScreen />;
   }
 
+  const totalPending = pendingPayrollRuns.length + pendingJournalEntries.length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header Section */}
@@ -410,6 +494,24 @@ const Dashboard = () => {
                 </div>
               </motion.div>
             ))}
+          </div>
+        )}
+
+        {/* Pending Approvals Summary Card */}
+        {totalPending > 0 && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <ClockIcon className="h-6 w-6 text-yellow-600" />
+              <div>
+                <h3 className="font-semibold text-yellow-800">Pending Approvals</h3>
+                <p className="text-sm text-yellow-700">
+                  You have {totalPending} item(s) awaiting your review:
+                  {pendingPayrollRuns.length > 0 && ` ${pendingPayrollRuns.length} payroll run(s)`}
+                  {pendingPayrollRuns.length > 0 && pendingJournalEntries.length > 0 && ' and '}
+                  {pendingJournalEntries.length > 0 && ` ${pendingJournalEntries.length} journal entry(ies)`}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -506,6 +608,172 @@ const Dashboard = () => {
             isCurrency={true}
           />
         </div>
+
+        {/* Pending Payroll Runs Section */}
+        {pendingPayrollRuns.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-yellow-50">
+              <div className="flex items-center gap-2">
+                <UserGroupIcon className="h-5 w-5 text-yellow-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Pending Payroll Approvals</h2>
+                <span className="px-2 py-1 text-xs font-medium bg-yellow-200 text-yellow-800 rounded-full">
+                  {pendingPayrollRuns.length}
+                </span>
+              </div>
+              <Link
+                to="/payroll/runs"
+                className="text-sm text-[rgb(31,178,86)] hover:underline flex items-center"
+              >
+                View all <ChevronRightIcon className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Run Number</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Employees</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted By</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                   </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pendingPayrollRuns.map((run) => (
+                    <tr key={run.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                        {run.runNumber}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(run.periodStart)} - {formatDate(run.periodEnd)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
+                        {formatCurrency(run.totalGross)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-[rgb(31,178,86)]">
+                        {formatCurrency(run.totalNet)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">
+                        {run.employeeCount || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {run.submittedBy}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => navigate(`/payroll/runs/${run.id}`)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="View Details"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleApprovePayroll(run.id)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Approve"
+                          >
+                            <CheckCircleIcon className="h-4 w-4" />
+          </button>
+                          <button
+                            onClick={() => handleRejectPayroll(run.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Reject"
+                          >
+                            <XCircleIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Journal Entries Section */}
+        {pendingJournalEntries.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-yellow-50">
+              <div className="flex items-center gap-2">
+                <DocumentTextIcon className="h-5 w-5 text-yellow-600" />
+                <h2 className="text-lg font-semibold text-gray-900">Pending Journal Approvals</h2>
+                <span className="px-2 py-1 text-xs font-medium bg-yellow-200 text-yellow-800 rounded-full">
+                  {pendingJournalEntries.length}
+                </span>
+              </div>
+              <Link
+                to="/accountant/journal-entries"
+                className="text-sm text-[rgb(31,178,86)] hover:underline flex items-center"
+              >
+                View all <ChevronRightIcon className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entry #</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted By</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pendingJournalEntries.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                        {entry.entry_number}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(entry.entry_date)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                        {entry.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                        {formatCurrency(entry.total_debit || entry.total_credit || 0)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {entry.created_by_name || 'Accountant'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => navigate(`/accounting/journal-entries/${entry.id}`)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                            title="View Details"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleApproveJournal(entry.id)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Approve"
+                          >
+                            <CheckCircleIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRejectJournal(entry.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Reject"
+                          >
+                            <XCircleIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Financial Trend Chart */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
@@ -713,24 +981,24 @@ const Dashboard = () => {
                     <tr key={journal.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(journal.entry_date || journal.date)}
-                      </td>
+                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
                         {journal.entry_number || journal.journalNumber}
-                      </td>
+                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                         {journal.description || '-'}
-                      </td>
+                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
                         {journal.total_debit ? formatCurrency(journal.total_debit) : '-'}
-                      </td>
+                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
                         {journal.total_credit ? formatCurrency(journal.total_credit) : '-'}
-                      </td>
+                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(journal.status)}`}>
                           {journal.status}
                         </span>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 ) : (

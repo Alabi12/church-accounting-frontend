@@ -268,7 +268,7 @@ function App() {
                                   <Route path="dashboard" element={<PayrollDashboard />} />
                                   
                                   {/* STEP 1: Accountant calculates payroll */}
-                                  <Route path="calculate" element={<PayrollCalculate />} />
+                                  <Route path="/payroll/calculate" element={<PayrollCalculate />} />
                                   
                                   {/* Payroll Runs */}
                                   <Route path="runs">
