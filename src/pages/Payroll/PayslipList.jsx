@@ -6,12 +6,12 @@ import {
   ArrowDownTrayIcon,
   EnvelopeIcon,
   EyeIcon,
-  MagnifyingGlassIcon as SearchIcon,  // Import as SearchIcon
+  MagnifyingGlassIcon as SearchIcon,
   CalendarIcon,
   UserGroupIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ClockIcon,  // Add this import
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { payrollService } from '../../services/payrollService';
 import toast from 'react-hot-toast';
@@ -35,7 +35,7 @@ const PayslipList = () => {
       setLoading(true);
       let response;
       if (selectedRun !== 'all') {
-        response = await payrollService.getPayslipsByRun(selectedRun);
+        response = await payrollService.getPayrollRunPayslips(selectedRun);
         setPayslips(response.payslips || []);
       } else {
         response = await payrollService.getPayslips();
@@ -51,7 +51,7 @@ const PayslipList = () => {
 
   const fetchRuns = async () => {
     try {
-      const response = await payrollService.getPayrollRuns({ status: 'POSTED' });
+      const response = await payrollService.getPayrollRuns({ status: 'processed' });
       setRuns(response.runs || []);
     } catch (error) {
       console.error('Error fetching runs:', error);
@@ -79,7 +79,7 @@ const PayslipList = () => {
   const handleEmail = async (id) => {
     if (!window.confirm('Email this payslip to the employee?')) return;
     try {
-      await payrollService.bulkEmailPayslips(id);
+      await payrollService.emailPayslip(id);
       toast.success('Payslip emailed successfully');
     } catch (error) {
       toast.error('Failed to email payslip');
@@ -102,8 +102,9 @@ const PayslipList = () => {
     });
   };
 
+  // Filter payslips based on search term
   const filteredPayslips = payslips.filter(p => 
-    p.employee?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.payslip_number?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -183,7 +184,7 @@ const PayslipList = () => {
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
                   <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
+                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {filteredPayslips.length === 0 ? (
@@ -205,11 +206,11 @@ const PayslipList = () => {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="text-sm font-medium text-gray-900">{payslip.payslip_number}</p>
-                        <p className="text-xs text-gray-500">Created: {formatDate(payslip.created_at)}</p>
+                        <p className="text-xs text-gray-500">Created: {formatDate(payslip.created_at || payslip.generated_at)}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm font-medium text-gray-900">{payslip.employee?.name || 'N/A'}</p>
-                        <p className="text-xs text-gray-500">ID: {payslip.employee?.code || 'N/A'}</p>
+                        <p className="text-sm font-medium text-gray-900">{payslip.employee_name || 'N/A'}</p>
+                        <p className="text-xs text-gray-500">ID: {payslip.employee_code || 'N/A'}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {payslip.period_start && payslip.period_end 
@@ -223,9 +224,9 @@ const PayslipList = () => {
                         {formatCurrency(payslip.net_pay)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${payslip.has_pdf ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {payslip.has_pdf ? <CheckCircleIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
-                          {payslip.has_pdf ? 'Generated' : 'Pending'}
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${payslip.has_pdf !== false ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {payslip.has_pdf !== false ? <CheckCircleIcon className="h-3 w-3" /> : <ClockIcon className="h-3 w-3" />}
+                          {payslip.has_pdf !== false ? 'Generated' : 'Pending'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -237,24 +238,20 @@ const PayslipList = () => {
                           >
                             <EyeIcon className="h-4 w-4" />
                           </button>
-                          {payslip.has_pdf && (
-                            <>
-                              <button
-                                onClick={() => handleDownload(payslip.id, payslip.payslip_number)}
-                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
-                                title="Download PDF"
-                              >
-                                <ArrowDownTrayIcon className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleEmail(payslip.id)}
-                                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg"
-                                title="Email Payslip"
-                              >
-                                <EnvelopeIcon className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
+                          <button
+                            onClick={() => handleDownload(payslip.id, payslip.payslip_number)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Download PDF"
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEmail(payslip.id)}
+                            className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-lg"
+                            title="Email Payslip"
+                          >
+                            <EnvelopeIcon className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </motion.tr>

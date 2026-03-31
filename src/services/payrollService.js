@@ -158,7 +158,7 @@ export const payrollService = {
     }
   },
 
-  // ==================== PAYSLIPS ====================
+  // ==================== PAYSLIP METHODS ====================
 
   getPayslips: async (params = {}) => {
     try {
@@ -170,11 +170,19 @@ export const payrollService = {
     }
   },
 
-  getPayslip: async (employeeId, runId) => {
+  getPayrollRunPayslips: async (runId) => {
     try {
-      const response = await api.get(`/payroll/employees/${employeeId}/payslip`, {
-        params: { run_id: runId }
-      });
+      const response = await api.get(`/payroll/runs/${runId}/payslips`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching run payslips:', error);
+      throw error;
+    }
+  },
+
+  getPayslip: async (payslipId) => {
+    try {
+      const response = await api.get(`/payroll/payslips/${payslipId}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching payslip:', error);
@@ -192,34 +200,9 @@ export const payrollService = {
     }
   },
 
-  bulkEmailPayslips: async (runId, employeeIds = []) => {
+  downloadPayslip: async (payslipId) => {
     try {
-      const response = await api.post(`/payroll/runs/${runId}/email-payslips`, {
-        employee_ids: employeeIds
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error emailing payslips:', error);
-      throw error;
-    }
-  },
-
-  sendPayslipEmail: async (employeeId, runId) => {
-    try {
-      const response = await api.post(`/payroll/employees/${employeeId}/send-payslip`, {
-        run_id: runId
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error sending payslip email:', error);
-      throw error;
-    }
-  },
-
-  downloadPayslip: async (employeeId, runId) => {
-    try {
-      const response = await api.get(`/payroll/employees/${employeeId}/payslip/download`, {
-        params: { run_id: runId },
+      const response = await api.get(`/payroll/payslips/${payslipId}/download`, {
         responseType: 'blob'
       });
       return response;
@@ -229,16 +212,44 @@ export const payrollService = {
     }
   },
 
-  bulkDownloadPayslips: async (runId, employeeIds = []) => {
+  emailPayslip: async (payslipId) => {
     try {
-      const response = await api.post(`/payroll/runs/${runId}/download-payslips`, {
-        employee_ids: employeeIds
-      }, {
-        responseType: 'blob'
-      });
-      return response;
+      const response = await api.post(`/payroll/payslips/${payslipId}/email`);
+      return response.data;
     } catch (error) {
-      console.error('Error bulk downloading payslips:', error);
+      console.error('Error emailing payslip:', error);
+      throw error;
+    }
+  },
+
+  bulkEmailPayslips: async (runId, employeeIds = []) => {
+    try {
+      const response = await api.post(`/payroll/runs/${runId}/email-payslips`, {
+        employee_ids: employeeIds
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error bulk emailing payslips:', error);
+      throw error;
+    }
+  },
+
+  markPayslipViewed: async (payslipId) => {
+    try {
+      const response = await api.post(`/payroll/payslips/${payslipId}/view`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking payslip as viewed:', error);
+      throw error;
+    }
+  },
+
+  signPayslip: async (payslipId, signatureData) => {
+    try {
+      const response = await api.post(`/payroll/payslips/${payslipId}/sign`, signatureData);
+      return response.data;
+    } catch (error) {
+      console.error('Error signing payslip:', error);
       throw error;
     }
   },
