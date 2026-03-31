@@ -56,15 +56,25 @@ export const payrollService = {
 
   // ==================== PAYROLL CALCULATION ====================
 
-  calculatePayroll: async (params) => {
-    try {
-      const response = await api.post('/payroll/calculate', params);
-      return response.data;
-    } catch (error) {
-      console.error('Error calculating payroll:', error);
-      throw error;
-    }
-  },
+calculatePayroll: async (params) => {
+  try {
+    const response = await api.post('/payroll/calculate', params);
+    return response.data;
+  } catch (error) {
+    console.error('Error calculating payroll:', error);
+    throw error;
+  }
+},
+
+createPayrollRun: async (data) => {
+  try {
+    const response = await api.post('/payroll/runs', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating payroll run:', error);
+    throw error;
+  }
+},
 
   getPayrollSummary: async (params) => {
     try {

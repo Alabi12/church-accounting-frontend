@@ -29,6 +29,7 @@ import {
   Line,
 } from 'recharts';
 import { reportService } from '../../services/reports';
+import api from '../../services/api';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatCurrency } from '../../utils/formatters';
 import toast from 'react-hot-toast';
@@ -71,26 +72,109 @@ const TaxReports = () => {
     }
   };
 
-  const handleExport = async (format) => {
+  // Completely rewritten handleExport function with better error handling
+  const handleExport = async (format = 'csv') => {
+    if (exporting) return;
+    
+    setExporting(true);
+    
     try {
-      setExporting(true);
-      const blob = await reportService.exportTaxReport({
-        year: selectedYear,
+      // Build the URL with params
+      const params = new URLSearchParams({
+        year: selectedYear.toString(),
         type: reportType,
-        format
+        format: format
       });
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `tax_report_${reportType}_${selectedYear}.${format}`;
-      a.click();
-      window.URL.revokeObjectURL(url);
       
-      toast.success(`Report exported as ${format.toUpperCase()}`);
+      const exportUrl = `/accounting/tax-reports/export?${params.toString()}`;
+      console.log('Exporting to:', exportUrl); // Debug log
+      
+      // Make the request
+      const response = await api.get(exportUrl, {
+        responseType: 'blob',
+        timeout: 30000 // 30 second timeout
+      });
+      
+      // Verify we have data
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
+      
+      // Check if the response is actually an error (some APIs return error as blob)
+      if (response.data.type === 'application/json') {
+        const text = await response.data.text();
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData.error) {
+            throw new Error(errorData.error);
+          }
+        } catch (e) {
+          // Not JSON, continue with download
+        }
+      }
+      
+      // Create blob with proper type
+      let blob;
+      if (format === 'csv') {
+        blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      } else if (format === 'pdf') {
+        blob = new Blob([response.data], { type: 'application/pdf' });
+      } else {
+        blob = new Blob([response.data]);
+      }
+      
+      // Create filename
+      const filename = `tax_report_${reportType}_${selectedYear}.${format}`;
+      
+      // Create download link
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      // Append to body, click, and cleanup
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup after a short delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
+      toast.success(`${format.toUpperCase()} report exported successfully`);
+      
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error(error.response?.data?.error || 'Failed to export report');
+      console.error('Export error details:', error);
+      
+      // Handle different error types
+      let errorMessage = 'Failed to export tax report';
+      
+      if (error.response?.data) {
+        // Try to extract error message from blob response
+        if (error.response.data instanceof Blob) {
+          try {
+            const errorText = await error.response.data.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.error || errorJson.message || errorText;
+            } catch {
+              errorMessage = errorText;
+            }
+          } catch (blobError) {
+            errorMessage = 'Server returned an error';
+          }
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setExporting(false);
     }
@@ -274,10 +358,11 @@ const TaxReports = () => {
           <h3 className="text-lg font-medium text-gray-900">Donor Contributions - {selectedYear}</h3>
           <button
             onClick={() => handleExport('csv')}
-            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)]"
+            disabled={exporting}
+            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)] disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
-            Export CSV
+            {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -389,10 +474,11 @@ const TaxReports = () => {
           <h3 className="text-lg font-medium text-gray-900">1099 Contractors - {selectedYear}</h3>
           <button
             onClick={() => handleExport('csv')}
-            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)]"
+            disabled={exporting}
+            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)] disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
-            Export CSV
+            {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -528,10 +614,11 @@ const TaxReports = () => {
           <h3 className="text-lg font-medium text-gray-900">Withholding Tax - {selectedYear}</h3>
           <button
             onClick={() => handleExport('csv')}
-            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)]"
+            disabled={exporting}
+            className="inline-flex items-center px-3 py-1 text-sm bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)] disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
-            Export CSV
+            {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
         <div className="overflow-x-auto">
