@@ -1,16 +1,18 @@
+// pages/Payroll/GeneratePayslips.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   DocumentTextIcon,
-  ArrowLeftIcon,  // Already have this
-  DocumentArrowDownIcon,  // This exists
+  ArrowLeftIcon,
+  DocumentArrowDownIcon,
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,
   CalendarIcon,
   UserGroupIcon,
   CurrencyDollarIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline';
 import { payrollService } from '../../services/payrollService';
 import toast from 'react-hot-toast';
@@ -23,6 +25,7 @@ const GeneratePayslips = () => {
   const [runs, setRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState('');
   const [generationResult, setGenerationResult] = useState(null);
+  const [payslips, setPayslips] = useState([]);
 
   useEffect(() => {
     fetchApprovedRuns();
@@ -31,8 +34,19 @@ const GeneratePayslips = () => {
   const fetchApprovedRuns = async () => {
     try {
       setLoading(true);
-      const response = await payrollService.getPayrollRuns({ status: 'POSTED' });
-      setRuns(response.runs || []);
+      // Look for runs that are either APPROVED or PROCESSED (POSTED)
+      const [approvedRuns, processedRuns] = await Promise.all([
+        payrollService.getPayrollRuns({ status: 'APPROVED' }),
+        payrollService.getPayrollRuns({ status: 'PROCESSED' })
+      ]);
+      
+      const allRuns = [...(approvedRuns.runs || []), ...(processedRuns.runs || [])];
+      // Remove duplicates and sort by date
+      const uniqueRuns = allRuns.filter((run, index, self) => 
+        index === self.findIndex(r => r.id === run.id)
+      ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      setRuns(uniqueRuns);
     } catch (error) {
       console.error('Error fetching runs:', error);
       toast.error('Failed to load payroll runs');
@@ -41,23 +55,53 @@ const GeneratePayslips = () => {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!selectedRun) {
-      toast.error('Please select a payroll run');
-      return;
-    }
+ // In GeneratePayslips.jsx, update the handleGenerate function
+const handleGenerate = async () => {
+  if (!selectedRun) {
+    toast.error('Please select a payroll run');
+    return;
+  }
 
-    setGenerating(true);
+  setGenerating(true);
+  try {
+    const response = await payrollService.generatePayslips(selectedRun);
+    setGenerationResult(response);
+    toast.success(response.message || 'Payslips generated successfully');
+    
+    // Fetch the generated payslips using the correct method
+    const payslipsData = await payrollService.getPayrollRunPayslips(selectedRun);
+    setPayslips(payslipsData.payslips || []);
+  } catch (error) {
+    console.error('Error generating payslips:', error);
+    toast.error(error.response?.data?.error || 'Failed to generate payslips');
+  } finally {
+    setGenerating(false);
+  }
+};
+
+  const handleDownload = async (employeeId, employeeName) => {
     try {
-      const response = await payrollService.generatePayslips(selectedRun);
-      setGenerationResult(response);
-      toast.success(response.message || 'Payslips generated successfully');
+      const response = await payrollService.downloadPayslip(employeeId, selectedRun);
+      
+      // Create blob and download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `payslip_${employeeName.replace(/\s/g, '_')}_${selectedRun}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Payslip downloaded for ${employeeName}`);
     } catch (error) {
-      console.error('Error generating payslips:', error);
-      toast.error(error.response?.data?.error || 'Failed to generate payslips');
-    } finally {
-      setGenerating(false);
+      console.error('Error downloading payslip:', error);
+      toast.error('Failed to download payslip');
     }
+  };
+
+  const handleView = (employeeId) => {
+    navigate(`/payroll/payslips/${employeeId}?run_id=${selectedRun}`);
   };
 
   const formatCurrency = (amount) => {
@@ -104,7 +148,7 @@ const GeneratePayslips = () => {
               <h2 className="text-xl font-semibold text-white">Generate Payslips</h2>
             </div>
             <p className="text-sm text-blue-100 mt-1">
-              Generate PDF payslips for employees from approved payroll runs
+              Generate PDF payslips for employees from approved or processed payroll runs
             </p>
           </div>
 
@@ -116,16 +160,25 @@ const GeneratePayslips = () => {
               </label>
               <select
                 value={selectedRun}
-                onChange={(e) => setSelectedRun(e.target.value)}
+                onChange={(e) => {
+                  setSelectedRun(e.target.value);
+                  setPayslips([]);
+                  setGenerationResult(null);
+                }}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select a payroll run...</option>
                 {runs.map(run => (
                   <option key={run.id} value={run.id}>
-                    {run.run_number} - {formatDate(run.period_start)} to {formatDate(run.period_end)}
+                    {run.run_number} - {formatDate(run.period_start)} to {formatDate(run.period_end)} ({run.status})
                   </option>
                 ))}
               </select>
+              {runs.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  No approved or processed payroll runs found. Please approve a payroll run first.
+                </p>
+              )}
             </div>
 
             {/* Run Details */}
@@ -134,10 +187,24 @@ const GeneratePayslips = () => {
                 <h3 className="font-medium text-gray-900 mb-3">Payroll Run Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <p className="text-xs text-gray-500">Run Number</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedRunData.run_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Status</p>
+                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                      {selectedRunData.status}
+                    </span>
+                  </div>
+                  <div>
                     <p className="text-xs text-gray-500">Period</p>
                     <p className="text-sm text-gray-900">
                       {formatDate(selectedRunData.period_start)} - {formatDate(selectedRunData.period_end)}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Employees</p>
+                    <p className="text-sm text-gray-900">{selectedRunData.employee_count}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Total Gross</p>
@@ -146,12 +213,6 @@ const GeneratePayslips = () => {
                   <div>
                     <p className="text-xs text-gray-500">Total Net</p>
                     <p className="text-sm font-medium text-[rgb(31,178,86)]">{formatCurrency(selectedRunData.total_net)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Status</p>
-                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                      {selectedRunData.status}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -181,6 +242,44 @@ const GeneratePayslips = () => {
                       </p>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Generated Payslips List */}
+            {payslips.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-gray-900 mb-3">Generated Payslips</h3>
+                <div className="space-y-2">
+                  {payslips.map((payslip) => (
+                    <div key={payslip.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <DocumentTextIcon className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{payslip.employee_name}</p>
+                          <p className="text-xs text-gray-500">
+                            Gross: {formatCurrency(payslip.gross_pay)} | Net: {formatCurrency(payslip.net_pay)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleView(payslip.employee_id)}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded-lg"
+                          title="View Payslip"
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownload(payslip.employee_id, payslip.employee_name)}
+                          className="p-1 text-green-600 hover:bg-green-50 rounded-lg"
+                          title="Download PDF"
+                        >
+                          <DocumentArrowDownIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -218,9 +317,9 @@ const GeneratePayslips = () => {
         <div className="mt-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
           <h4 className="text-sm font-medium text-blue-800 mb-2">About Payslip Generation</h4>
           <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-            <li>Payslips can only be generated for payroll runs with status "POSTED"</li>
+            <li>Payslips can be generated for payroll runs with status "APPROVED" or "PROCESSED"</li>
             <li>Each payslip is generated as a PDF with employee details and calculations</li>
-            <li>Generated payslips can be downloaded individually or emailed to employees</li>
+            <li>Generated payslips can be downloaded individually or viewed in the browser</li>
             <li>You can view all payslips in the "Payslips" section</li>
           </ul>
         </div>

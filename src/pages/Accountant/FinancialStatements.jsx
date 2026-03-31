@@ -15,6 +15,8 @@ import {
   ChartBarIcon,
   CheckCircleIcon,
   XCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -34,6 +36,7 @@ const FinancialStatements = () => {
   const [budgetComparison, setBudgetComparison] = useState(null);
   const [budgetLoading, setBudgetLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   const statements = [
     { id: 'trialBalance', name: 'Trial Balance', icon: ScaleIcon, color: 'purple' },
@@ -174,6 +177,13 @@ const FinancialStatements = () => {
     } finally {
       setExporting(false);
     }
+  };
+
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
   };
 
   const BudgetVarianceCard = () => {
@@ -366,7 +376,7 @@ const FinancialStatements = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit (GHS)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit (GHS)</th>
-              </tr>
+               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {Object.entries(grouped).map(([type, accountsList]) => (
@@ -408,8 +418,40 @@ const FinancialStatements = () => {
   const renderIncomeStatement = () => {
     if (!statementData) return null;
     
-    const revenue = statementData.revenue || { categories: {}, total: 0 };
-    const expenses = statementData.expenses || { categories: {}, total: 0 };
+    // Group revenue items by category
+    const revenueByCategory = {};
+    const revenueItems = statementData.revenue?.items || [];
+    
+    revenueItems.forEach(item => {
+      const category = item.category || 'Other Revenue';
+      if (!revenueByCategory[category]) {
+        revenueByCategory[category] = {
+          total: 0,
+          items: []
+        };
+      }
+      revenueByCategory[category].total += item.amount;
+      revenueByCategory[category].items.push(item);
+    });
+    
+    // Group expense items by category
+    const expenseByCategory = {};
+    const expenseItems = statementData.expenses?.items || [];
+    
+    expenseItems.forEach(item => {
+      const category = item.category || 'Other Expenses';
+      if (!expenseByCategory[category]) {
+        expenseByCategory[category] = {
+          total: 0,
+          items: []
+        };
+      }
+      expenseByCategory[category].total += item.amount;
+      expenseByCategory[category].items.push(item);
+    });
+    
+    const totalRevenue = statementData.revenue?.total || 0;
+    const totalExpenses = statementData.expenses?.total || 0;
     const netIncome = statementData.net_income || 0;
     
     return (
@@ -422,98 +464,111 @@ const FinancialStatements = () => {
           <BudgetVarianceCard />
         )}
         
+        {/* INCOME SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
             <h3 className="text-lg font-semibold text-green-700">INCOME</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
-                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {Object.entries(revenue.categories || {}).map(([category, categoryData]) => (
-                  <React.Fragment key={category}>
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">{category}</td>
-                      <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
-                        {formatCurrency(categoryData.total || 0)}
-                      </td>
-                    </tr>
-                    {(categoryData.accounts || []).map((account, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-xs text-gray-400"></td>
-                        <td className="px-4 py-2 text-sm text-gray-600">
-                          {account.code} - {account.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right text-green-600">
-                          {formatCurrency(account.amount || 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-                <tr className="bg-green-100 font-bold">
-                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL INCOME</td>
-                  <td className="px-4 py-3 text-sm text-right text-green-700">
-                    {formatCurrency(revenue.total || 0)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {Object.keys(revenueByCategory).length > 0 ? (
+              Object.entries(revenueByCategory).map(([category, categoryData]) => (
+                <div key={category} className="mb-4">
+                  <button
+                    onClick={() => toggleCategory(`revenue_${category}`)}
+                    className="w-full flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center">
+                      {expandedCategories[`revenue_${category}`] ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      )}
+                      <span className="font-semibold text-gray-700">{category}</span>
+                    </div>
+                    <span className="font-bold text-green-600">{formatCurrency(categoryData.total)}</span>
+                  </button>
+                  
+                  {expandedCategories[`revenue_${category}`] && (
+                    <div className="mt-2 ml-6 space-y-1">
+                      {categoryData.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-1 border-b border-gray-100">
+                          <div className="flex items-center">
+                            <span className="text-xs font-mono text-gray-500 w-16">{item.account_code}</span>
+                            <span className="text-sm text-gray-600 ml-2">{item.name}</span>
+                          </div>
+                          <span className="text-sm text-green-600">{formatCurrency(item.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4">No income transactions for this period</p>
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-800">TOTAL INCOME</span>
+                <span className="text-xl font-bold text-green-600">{formatCurrency(totalRevenue)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* EXPENDITURE SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-red-50 border-b border-red-200">
             <h3 className="text-lg font-semibold text-red-700">EXPENDITURE</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
-                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {Object.entries(expenses.categories || {}).map(([category, categoryData]) => (
-                  <React.Fragment key={category}>
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">{category}</td>
-                      <td className="px-4 py-2 text-sm text-right font-semibold text-red-600">
-                        {formatCurrency(categoryData.total || 0)}
-                      </td>
-                    </tr>
-                    {(categoryData.accounts || []).map((account, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-xs text-gray-400"></td>
-                        <td className="px-4 py-2 text-sm text-gray-600">
-                          {account.code} - {account.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right text-red-600">
-                          {formatCurrency(account.amount || 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-                <tr className="bg-red-100 font-bold">
-                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL EXPENDITURE</td>
-                  <td className="px-4 py-3 text-sm text-right text-red-700">
-                    {formatCurrency(expenses.total || 0)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {Object.keys(expenseByCategory).length > 0 ? (
+              Object.entries(expenseByCategory).map(([category, categoryData]) => (
+                <div key={category} className="mb-4">
+                  <button
+                    onClick={() => toggleCategory(`expense_${category}`)}
+                    className="w-full flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center">
+                      {expandedCategories[`expense_${category}`] ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      )}
+                      <span className="font-semibold text-gray-700">{category}</span>
+                    </div>
+                    <span className="font-bold text-red-600">{formatCurrency(categoryData.total)}</span>
+                  </button>
+                  
+                  {expandedCategories[`expense_${category}`] && (
+                    <div className="mt-2 ml-6 space-y-1">
+                      {categoryData.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-1 border-b border-gray-100">
+                          <div className="flex items-center">
+                            <span className="text-xs font-mono text-gray-500 w-16">{item.account_code}</span>
+                            <span className="text-sm text-gray-600 ml-2">{item.name}</span>
+                          </div>
+                          <span className="text-sm text-red-600">{formatCurrency(item.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4">No expense transactions for this period</p>
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-800">TOTAL EXPENDITURE</span>
+                <span className="text-xl font-bold text-red-600">{formatCurrency(totalExpenses)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* NET RESULT */}
         <div className={`bg-white rounded-lg p-4 border ${netIncome >= 0 ? 'border-green-200' : 'border-red-200'}`}>
           <div className="flex justify-between items-center">
             <span className="text-lg font-semibold text-gray-700">NET {netIncome >= 0 ? 'SURPLUS' : 'DEFICIT'}</span>
@@ -532,84 +587,130 @@ const FinancialStatements = () => {
     const { assets, liabilities, equity } = statementData;
     const totalLiabilitiesEquity = (liabilities?.total || 0) + (equity?.total || 0);
     
+    // Group assets by category
+    const assetsByCategory = {};
+    const allAssets = [...(assets?.current || []), ...(assets?.fixed || [])];
+    allAssets.forEach(asset => {
+      const category = asset.category || (asset.is_current ? 'Current Assets' : 'Fixed Assets');
+      if (!assetsByCategory[category]) {
+        assetsByCategory[category] = {
+          total: 0,
+          items: []
+        };
+      }
+      assetsByCategory[category].total += asset.amount;
+      assetsByCategory[category].items.push(asset);
+    });
+    
     return (
       <div className="space-y-6">
+        {/* ASSETS SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">ASSETS</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {assets?.current?.length > 0 && (
-                  <>
-                    <tr className="bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm font-semibold text-gray-700">Current Assets</td>
-                      <td className="px-4 py-2 text-sm text-right font-semibold text-blue-600">
-                        {formatCurrency(assets.current.reduce((sum, a) => sum + a.amount, 0))}
-                      </td>
-                    </tr>
-                    {assets.current.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs font-mono text-gray-500">{item.code}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{item.name}</td>
-                        <td className="px-4 py-1 text-sm text-right text-blue-600">{formatCurrency(item.amount)}</td>
-                      </tr>
-                    ))}
-                  </>
-                )}
-                <tr className="bg-blue-100 font-bold">
-                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL ASSETS</td>
-                  <td className="px-4 py-3 text-sm text-right text-blue-700">{formatCurrency(assets?.total || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {Object.keys(assetsByCategory).length > 0 ? (
+              Object.entries(assetsByCategory).map(([category, categoryData]) => (
+                <div key={category} className="mb-4">
+                  <button
+                    onClick={() => toggleCategory(`asset_${category}`)}
+                    className="w-full flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center">
+                      {expandedCategories[`asset_${category}`] ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                      )}
+                      <span className="font-semibold text-gray-700">{category}</span>
+                    </div>
+                    <span className="font-bold text-blue-600">{formatCurrency(categoryData.total)}</span>
+                  </button>
+                  
+                  {expandedCategories[`asset_${category}`] && (
+                    <div className="mt-2 ml-6 space-y-1">
+                      {categoryData.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-1 border-b border-gray-100">
+                          <div className="flex items-center">
+                            <span className="text-xs font-mono text-gray-500 w-16">{item.code}</span>
+                            <span className="text-sm text-gray-600 ml-2">{item.name}</span>
+                          </div>
+                          <span className="text-sm text-blue-600">{formatCurrency(item.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4">No assets found</p>
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-800">TOTAL ASSETS</span>
+                <span className="text-xl font-bold text-blue-700">{formatCurrency(assets?.total || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* LIABILITIES SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">LIABILITIES</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {liabilities?.current?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-xs font-mono text-gray-500">{item.code}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-orange-600">{formatCurrency(item.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-orange-100 font-bold">
-                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL LIABILITIES</td>
-                  <td className="px-4 py-3 text-sm text-right text-orange-700">{formatCurrency(liabilities?.total || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {liabilities?.items && liabilities.items.length > 0 ? (
+              liabilities.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <div className="flex items-center">
+                    <span className="text-xs font-mono text-gray-500 w-16">{item.code}</span>
+                    <span className="text-sm text-gray-600 ml-2">{item.name}</span>
+                  </div>
+                  <span className="text-sm text-orange-600">{formatCurrency(item.amount)}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4">No liabilities found</p>
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-800">TOTAL LIABILITIES</span>
+                <span className="text-xl font-bold text-orange-700">{formatCurrency(liabilities?.total || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* EQUITY SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">EQUITY</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {equity?.accounts?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-xs font-mono text-gray-500">{item.code}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-purple-600">{formatCurrency(item.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-purple-100 font-bold">
-                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL EQUITY</td>
-                  <td className="px-4 py-3 text-sm text-right text-purple-700">{formatCurrency(equity?.total || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {equity?.items && equity.items.length > 0 ? (
+              equity.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <div className="flex items-center">
+                    <span className="text-xs font-mono text-gray-500 w-16">{item.code}</span>
+                    <span className="text-sm text-gray-600 ml-2">{item.name}</span>
+                  </div>
+                  <span className="text-sm text-purple-600">{formatCurrency(item.amount)}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-4">No equity found</p>
+            )}
+            
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-800">TOTAL EQUITY</span>
+                <span className="text-xl font-bold text-purple-700">{formatCurrency(equity?.total || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -632,6 +733,7 @@ const FinancialStatements = () => {
     
     return (
       <div className="space-y-6">
+        {/* Opening Balances */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-700">OPENING BALANCES</h3>
@@ -639,16 +741,10 @@ const FinancialStatements = () => {
           <div className="p-4 overflow-x-auto">
             <table className="min-w-full">
               <tbody>
-                {openingBalances?.cashAccounts?.map((acc, idx) => (
+                {openingBalances?.items?.map((item, idx) => (
                   <tr key={idx}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{acc.code} - Cash: {acc.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(acc.openingBalance)}</td>
-                  </tr>
-                ))}
-                {openingBalances?.bankAccounts?.map((acc, idx) => (
-                  <tr key={idx}>
-                    <td className="px-4 py-2 text-sm text-gray-600">{acc.code} - Bank: {acc.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(acc.openingBalance)}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.account_code} - {item.name} (Cash)</td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
                 <tr className="bg-gray-100 font-bold">
@@ -660,68 +756,69 @@ const FinancialStatements = () => {
           </div>
         </div>
 
+        {/* Receipts */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
             <h3 className="text-lg font-semibold text-green-700">RECEIPTS</h3>
           </div>
           <div className="p-4 overflow-x-auto">
-            {Object.entries(receipts?.byAccount || {}).map(([accountKey, data]) => (
-              <div key={accountKey} className="mb-4">
-                <div className="flex justify-between items-center bg-green-100 p-2 rounded">
-                  <span className="font-semibold text-green-800">{data.code} - {data.name}</span>
-                  <span className="font-bold text-green-600">{formatCurrency(data.total)}</span>
-                </div>
-                <table className="min-w-full mt-2">
-                  <tbody>
-                    {data.items?.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{item.description}</td>
-                        <td className="px-4 py-1 text-sm text-right text-green-600">{formatCurrency(item.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-            <div className="bg-green-100 p-3 rounded font-bold flex justify-between mt-4">
-              <span>TOTAL RECEIPTS</span>
-              <span className="text-green-700">{formatCurrency(receipts?.total || 0)}</span>
-            </div>
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receipts?.items?.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.category || 'General'}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.account_code} - {item.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-green-600">{formatCurrency(item.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-green-100 font-bold">
+                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL RECEIPTS</td>
+                  <td className="px-4 py-3 text-sm text-right text-green-700">{formatCurrency(receipts?.total || 0)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
+        {/* Payments */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-red-50 border-b border-red-200">
             <h3 className="text-lg font-semibold text-red-700">PAYMENTS</h3>
           </div>
           <div className="p-4 overflow-x-auto">
-            {Object.entries(payments?.byAccount || {}).map(([accountKey, data]) => (
-              <div key={accountKey} className="mb-4">
-                <div className="flex justify-between items-center bg-red-100 p-2 rounded">
-                  <span className="font-semibold text-red-800">{data.code} - {data.name}</span>
-                  <span className="font-bold text-red-600">{formatCurrency(data.total)}</span>
-                </div>
-                <table className="min-w-full mt-2">
-                  <tbody>
-                    {data.items?.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-1 text-xs text-gray-500">{item.date}</td>
-                        <td className="px-4 py-1 text-sm text-gray-600">{item.description}</td>
-                        <td className="px-4 py-1 text-sm text-right text-red-600">{formatCurrency(item.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-            <div className="bg-red-100 p-3 rounded font-bold flex justify-between mt-4">
-              <span>TOTAL PAYMENTS</span>
-              <span className="text-red-700">{formatCurrency(payments?.total || 0)}</span>
-            </div>
+            <table className="min-w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
+                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
+                  <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
+                 </tr>
+              </thead>
+              <tbody>
+                {payments?.items?.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.category || 'General'}</td>
+                    <td className="px-4 py-2 text-sm text-gray-600">{item.account_code} - {item.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-red-600">{formatCurrency(item.amount)}</td>
+                  </tr>
+                ))}
+                <tr className="bg-red-100 font-bold">
+                  <td colSpan="2" className="px-4 py-3 text-sm">TOTAL PAYMENTS</td>
+                  <td className="px-4 py-3 text-sm text-right text-red-700">{formatCurrency(payments?.total || 0)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
+        {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <p className="text-sm text-blue-600 mb-1">Net Cash Flow</p>
@@ -747,72 +844,70 @@ const FinancialStatements = () => {
     
     return (
       <div className="space-y-6">
+        {/* Operating Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-200">
             <h3 className="text-lg font-semibold text-blue-700">CASH FLOW FROM OPERATING ACTIVITIES</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {operating?.items?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-blue-100 font-bold">
-                  <td className="px-4 py-3 text-sm">Net Cash from Operating Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-blue-700">{formatCurrency(operating?.net || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {operating?.items?.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">{item.description}</span>
+                <span className="text-sm text-gray-900">{formatCurrency(item.amount)}</span>
+              </div>
+            ))}
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-800">Net Cash from Operating Activities</span>
+                <span className="text-lg font-bold text-blue-600">{formatCurrency(operating?.net || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Investing Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-purple-50 border-b border-purple-200">
             <h3 className="text-lg font-semibold text-purple-700">CASH FLOW FROM INVESTING ACTIVITIES</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {investing?.items?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-purple-100 font-bold">
-                  <td className="px-4 py-3 text-sm">Net Cash from Investing Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-purple-700">{formatCurrency(investing?.net || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {investing?.items?.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">{item.description}</span>
+                <span className="text-sm text-gray-900">{formatCurrency(item.amount)}</span>
+              </div>
+            ))}
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-800">Net Cash from Investing Activities</span>
+                <span className="text-lg font-bold text-purple-600">{formatCurrency(investing?.net || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Financing Activities */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-orange-50 border-b border-orange-200">
             <h3 className="text-lg font-semibold text-orange-700">CASH FLOW FROM FINANCING ACTIVITIES</h3>
           </div>
-          <div className="p-4 overflow-x-auto">
-            <table className="min-w-full">
-              <tbody>
-                {financing?.items?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-600">{item.description}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(item.amount)}</td>
-                  </tr>
-                ))}
-                <tr className="bg-orange-100 font-bold">
-                  <td className="px-4 py-3 text-sm">Net Cash from Financing Activities</td>
-                  <td className="px-4 py-3 text-sm text-right text-orange-700">{formatCurrency(financing?.net || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="p-4">
+            {financing?.items?.map((item, idx) => (
+              <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-sm text-gray-600">{item.description}</span>
+                <span className="text-sm text-gray-900">{formatCurrency(item.amount)}</span>
+              </div>
+            ))}
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-800">Net Cash from Financing Activities</span>
+                <span className="text-lg font-bold text-orange-600">{formatCurrency(financing?.net || 0)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <p className="text-sm text-gray-600 mb-1">Beginning Cash</p>
