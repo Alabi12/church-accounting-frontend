@@ -5,6 +5,8 @@ import {
   ArrowPathIcon,
   FunnelIcon,
   PlusCircleIcon,
+  UserGroupIcon,
+  CalendarIcon,
 } from '@heroicons/react/24/outline';
 import { leaveService } from '../../services/leaveService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -18,20 +20,17 @@ function LeaveBalances() {
   const [showFilters, setShowFilters] = useState(false);
   const [initDialog, setInitDialog] = useState({ isOpen: false });
 
-  // Generate year options
   const currentYear = new Date().getFullYear();
   const yearOptions = [];
   for (let i = currentYear - 2; i <= currentYear + 2; i++) {
     yearOptions.push(i);
   }
 
-  // Fetch leave balances - FIXED: data.balances not data.data.balances
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['leaveBalances', yearFilter],
     queryFn: () => leaveService.getLeaveBalances({ year: yearFilter }),
   });
 
-  // Initialize balances mutation
   const initMutation = useMutation({
     mutationFn: () => leaveService.initializeLeaveBalances({ year: yearFilter }),
     onSuccess: () => {
@@ -40,56 +39,39 @@ function LeaveBalances() {
       setInitDialog({ isOpen: false });
     },
     onError: (error) => {
-      console.error('Init error:', error);
       toast.error(error.response?.data?.error || 'Failed to initialize leave balances');
     },
   });
 
   const getLeaveTypeColor = (type) => {
     switch (type) {
-      case 'annual':
-        return 'bg-blue-100 text-blue-800';
-      case 'sick':
-        return 'bg-red-100 text-red-800';
-      case 'bereavement':
-        return 'bg-gray-100 text-gray-800';
-      case 'maternity':
-        return 'bg-purple-100 text-purple-800';
-      case 'paternity':
-        return 'bg-indigo-100 text-indigo-800';
-      case 'study':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'annual': return 'bg-blue-100 text-blue-800';
+      case 'sick': return 'bg-red-100 text-red-800';
+      case 'bereavement': return 'bg-gray-100 text-gray-800';
+      case 'maternity': return 'bg-purple-100 text-purple-800';
+      case 'paternity': return 'bg-indigo-100 text-indigo-800';
+      case 'study': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getLeaveTypeLabel = (type) => {
     switch (type) {
-      case 'annual':
-        return 'Annual Leave';
-      case 'sick':
-        return 'Sick Leave';
-      case 'bereavement':
-        return 'Bereavement';
-      case 'maternity':
-        return 'Maternity';
-      case 'paternity':
-        return 'Paternity';
-      case 'study':
-        return 'Study Leave';
-      default:
-        return type;
+      case 'annual': return 'Annual Leave';
+      case 'sick': return 'Sick Leave';
+      case 'bereavement': return 'Bereavement';
+      case 'maternity': return 'Maternity';
+      case 'paternity': return 'Paternity';
+      case 'study': return 'Study Leave';
+      default: return type;
     }
   };
 
   if (isLoading) return <LoadingSpinner fullScreen />;
   if (error) return <ErrorAlert message="Failed to load leave balances" />;
 
-  // FIXED: Access balances directly from data, not data.data
   const balances = data?.balances || [];
 
-  // Group balances by employee
   const balancesByEmployee = balances.reduce((acc, balance) => {
     if (!acc[balance.employee_id]) {
       acc[balance.employee_id] = {
@@ -104,7 +86,6 @@ function LeaveBalances() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <h1 className="text-2xl font-semibold text-gray-900">Leave Balances</h1>
@@ -116,7 +97,7 @@ function LeaveBalances() {
           <button
             type="button"
             onClick={() => setInitDialog({ isOpen: true })}
-            className="inline-flex items-center justify-center rounded-md border border-transparent bg-[rgb(31,178,86)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(25,142,69)] focus:outline-none focus:ring-2 focus:ring-[rgb(31,178,86)] focus:ring-offset-2"
+            className="inline-flex items-center justify-center rounded-md border border-transparent bg-[rgb(31,178,86)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[rgb(25,142,69)]"
           >
             <PlusCircleIcon className="-ml-1 mr-2 h-5 w-5" />
             Initialize Year {yearFilter}
@@ -124,7 +105,6 @@ function LeaveBalances() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="mt-6">
         <div className="flex items-center justify-between">
           <button
@@ -167,33 +147,59 @@ function LeaveBalances() {
         )}
       </div>
 
-      {/* Summary Cards */}
       {balances.length > 0 && (
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-sm text-gray-500">Total Employees</p>
-            <p className="text-2xl font-bold text-gray-900">{Object.keys(balancesByEmployee).length}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Employees</p>
+                <p className="text-2xl font-bold text-gray-900">{Object.keys(balancesByEmployee).length}</p>
+              </div>
+              <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <UserGroupIcon className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
           </div>
           <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-sm text-gray-500">Total Leave Types</p>
-            <p className="text-2xl font-bold text-gray-900">{balances.length}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Leave Types</p>
+                <p className="text-2xl font-bold text-gray-900">{balances.length}</p>
+              </div>
+              <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <CalendarIcon className="h-5 w-5 text-purple-600" />
+              </div>
+            </div>
           </div>
           <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-sm text-gray-500">Total Days Used</p>
-            <p className="text-2xl font-bold text-red-600">
-              {balances.reduce((sum, b) => sum + (b.used || 0), 0)}
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Days Used</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {balances.reduce((sum, b) => sum + (b.used || 0), 0)}
+                </p>
+              </div>
+              <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center">
+                <XCircleIcon className="h-5 w-5 text-red-600" />
+              </div>
+            </div>
           </div>
           <div className="bg-white rounded-lg p-4 border border-gray-200">
-            <p className="text-sm text-gray-500">Total Days Remaining</p>
-            <p className="text-2xl font-bold text-green-600">
-              {balances.reduce((sum, b) => sum + (b.remaining || 0), 0)}
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Days Remaining</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {balances.reduce((sum, b) => sum + (b.remaining || 0), 0)}
+                </p>
+              </div>
+              <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircleIcon className="h-5 w-5 text-green-600" />
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Balances Table */}
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -201,25 +207,13 @@ function LeaveBalances() {
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                      Employee
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Leave Type
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                      Entitlement
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                      Used
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                      Remaining
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">
-                      Utilization
-                    </th>
-                   </tr>
+                    <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Employee</th>
+                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Leave Type</th>
+                    <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Entitlement</th>
+                    <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Used</th>
+                    <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Remaining</th>
+                    <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Utilization</th>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {Object.values(balancesByEmployee).map((employee) => (
@@ -284,7 +278,6 @@ function LeaveBalances() {
         </div>
       </div>
 
-      {/* Initialize Confirmation Dialog */}
       <ConfirmDialog
         isOpen={initDialog.isOpen}
         onClose={() => setInitDialog({ isOpen: false })}

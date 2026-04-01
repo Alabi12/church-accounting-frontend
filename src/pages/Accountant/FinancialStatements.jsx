@@ -17,6 +17,8 @@ import {
   XCircleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  UserGroupIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { accountantService } from '../../services/accountant';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -376,7 +378,7 @@ const FinancialStatements = () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Name</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Debit (GHS)</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credit (GHS)</th>
-               </tr>
+              </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {Object.entries(grouped).map(([type, accountsList]) => (
@@ -434,12 +436,77 @@ const FinancialStatements = () => {
       revenueByCategory[category].items.push(item);
     });
     
-    // Group expense items by category
+    // Enhanced expense grouping with staff cost breakdown
     const expenseByCategory = {};
     const expenseItems = statementData.expenses?.items || [];
     
+    // Separate staff-related expenses
+    let staffCosts = {
+      salaries_wages: { total: 0, items: [] },
+      ssnit_employer: { total: 0, items: [] },
+      tier2_pension: { total: 0, items: [] },
+      tier3_pension: { total: 0, items: [] },
+      staff_benefits: { total: 0, items: [] },
+      training: { total: 0, items: [] },
+      other_staff: { total: 0, items: [] }
+    };
+    
     expenseItems.forEach(item => {
-      const category = item.category || 'Other Expenses';
+      // Check if this is a staff-related expense
+      const isStaffExpense = item.name?.toLowerCase().includes('salary') ||
+                            item.name?.toLowerCase().includes('wage') ||
+                            item.name?.toLowerCase().includes('ssnit') ||
+                            item.name?.toLowerCase().includes('pension') ||
+                            item.name?.toLowerCase().includes('staff') ||
+                            item.name?.toLowerCase().includes('employee') ||
+                            item.name?.toLowerCase().includes('benefit') ||
+                            item.name?.toLowerCase().includes('training') ||
+                            item.name?.toLowerCase().includes('allowance');
+      
+      let category = item.category || 'Other Expenses';
+      
+      // Special handling for staff costs
+      if (isStaffExpense) {
+        const name = item.name.toLowerCase();
+        
+        if (name.includes('salary') || name.includes('wage') || name.includes('gross pay')) {
+          staffCosts.salaries_wages.total += item.amount;
+          staffCosts.salaries_wages.items.push(item);
+          category = 'STAFF COSTS - Salaries & Wages';
+        } 
+        else if (name.includes('ssnit') || name.includes('social security')) {
+          staffCosts.ssnit_employer.total += item.amount;
+          staffCosts.ssnit_employer.items.push(item);
+          category = 'STAFF COSTS - SSNIT (Employer)';
+        }
+        else if (name.includes('tier 2') || name.includes('tier2')) {
+          staffCosts.tier2_pension.total += item.amount;
+          staffCosts.tier2_pension.items.push(item);
+          category = 'STAFF COSTS - Tier 2 Pension';
+        }
+        else if (name.includes('tier 3') || name.includes('tier3')) {
+          staffCosts.tier3_pension.total += item.amount;
+          staffCosts.tier3_pension.items.push(item);
+          category = 'STAFF COSTS - Tier 3 Pension';
+        }
+        else if (name.includes('benefit') || name.includes('allowance') || name.includes('housing') || name.includes('transport')) {
+          staffCosts.staff_benefits.total += item.amount;
+          staffCosts.staff_benefits.items.push(item);
+          category = 'STAFF COSTS - Benefits & Allowances';
+        }
+        else if (name.includes('training') || name.includes('development')) {
+          staffCosts.training.total += item.amount;
+          staffCosts.training.items.push(item);
+          category = 'STAFF COSTS - Training & Development';
+        }
+        else {
+          staffCosts.other_staff.total += item.amount;
+          staffCosts.other_staff.items.push(item);
+          category = 'STAFF COSTS - Other Staff Costs';
+        }
+      }
+      
+      // Group by category
       if (!expenseByCategory[category]) {
         expenseByCategory[category] = {
           total: 0,
@@ -450,9 +517,22 @@ const FinancialStatements = () => {
       expenseByCategory[category].items.push(item);
     });
     
+    // Calculate total staff costs
+    const totalStaffCosts = staffCosts.salaries_wages.total + 
+                            staffCosts.ssnit_employer.total + 
+                            staffCosts.tier2_pension.total +
+                            staffCosts.tier3_pension.total +
+                            staffCosts.staff_benefits.total +
+                            staffCosts.training.total +
+                            staffCosts.other_staff.total;
+    
     const totalRevenue = statementData.revenue?.total || 0;
     const totalExpenses = statementData.expenses?.total || 0;
     const netIncome = statementData.net_income || 0;
+    
+    // Calculate staff cost percentage of total expenses and revenue
+    const staffCostPercentageOfExpenses = totalExpenses > 0 ? (totalStaffCosts / totalExpenses * 100).toFixed(1) : 0;
+    const staffCostPercentageOfRevenue = totalRevenue > 0 ? (totalStaffCosts / totalRevenue * 100).toFixed(1) : 0;
     
     return (
       <div className="space-y-6">
@@ -464,10 +544,36 @@ const FinancialStatements = () => {
           <BudgetVarianceCard />
         )}
         
+        {/* Staff Cost Summary Card */}
+        {totalStaffCosts > 0 && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <BriefcaseIcon className="h-6 w-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Staff Cost Summary</h3>
+              </div>
+              <span className="text-2xl font-bold text-blue-700">{formatCurrency(totalStaffCosts)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-blue-200">
+              <div>
+                <p className="text-xs text-gray-600">% of Total Expenses</p>
+                <p className="text-lg font-semibold text-blue-600">{staffCostPercentageOfExpenses}%</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600">% of Total Income</p>
+                <p className="text-lg font-semibold text-blue-600">{staffCostPercentageOfRevenue}%</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* INCOME SECTION */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-200">
-            <h3 className="text-lg font-semibold text-green-700">INCOME</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-green-700">INCOME</h3>
+              <span className="text-sm text-green-600">Total: {formatCurrency(totalRevenue)}</span>
+            </div>
           </div>
           <div className="p-4">
             {Object.keys(revenueByCategory).length > 0 ? (
@@ -506,24 +612,249 @@ const FinancialStatements = () => {
             ) : (
               <p className="text-gray-500 text-center py-4">No income transactions for this period</p>
             )}
-            
-            <div className="mt-4 pt-3 border-t border-gray-200">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-gray-800">TOTAL INCOME</span>
-                <span className="text-xl font-bold text-green-600">{formatCurrency(totalRevenue)}</span>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* EXPENDITURE SECTION */}
+        {/* EXPENDITURE SECTION with enhanced staff cost breakdown */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-            <h3 className="text-lg font-semibold text-red-700">EXPENDITURE</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-red-700">EXPENDITURE</h3>
+              <span className="text-sm text-red-600">Total: {formatCurrency(totalExpenses)}</span>
+            </div>
           </div>
           <div className="p-4">
-            {Object.keys(expenseByCategory).length > 0 ? (
-              Object.entries(expenseByCategory).map(([category, categoryData]) => (
+            {/* Staff Costs Section - Always show if there are any staff costs */}
+            {totalStaffCosts > 0 && (
+              <div className="mb-6 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <UserGroupIcon className="h-5 w-5 text-blue-600 mr-2" />
+                    <h4 className="font-bold text-gray-800">STAFF COSTS</h4>
+                  </div>
+                  <span className="text-lg font-bold text-blue-700">{formatCurrency(totalStaffCosts)}</span>
+                </div>
+                
+                <div className="space-y-2">
+                  {/* Salaries & Wages */}
+                  {staffCosts.salaries_wages.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_salaries')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_salaries'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Salaries & Wages (Gross Pay)</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.salaries_wages.total)}</span>
+                      </button>
+                      {expandedCategories['staff_salaries'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.salaries_wages.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* SSNIT Employer */}
+                  {staffCosts.ssnit_employer.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_ssnit')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_ssnit'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">SSNIT (Employer Contribution - 13%)</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.ssnit_employer.total)}</span>
+                      </button>
+                      {expandedCategories['staff_ssnit'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.ssnit_employer.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Tier 2 Pension */}
+                  {staffCosts.tier2_pension.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_tier2')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_tier2'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Tier 2 Pension (5.5%)</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.tier2_pension.total)}</span>
+                      </button>
+                      {expandedCategories['staff_tier2'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.tier2_pension.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Tier 3 Pension */}
+                  {staffCosts.tier3_pension.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_tier3')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_tier3'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Tier 3 Pension (Voluntary)</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.tier3_pension.total)}</span>
+                      </button>
+                      {expandedCategories['staff_tier3'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.tier3_pension.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Staff Benefits */}
+                  {staffCosts.staff_benefits.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_benefits')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_benefits'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Benefits & Allowances</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.staff_benefits.total)}</span>
+                      </button>
+                      {expandedCategories['staff_benefits'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.staff_benefits.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Training & Development */}
+                  {staffCosts.training.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_training')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_training'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Training & Development</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.training.total)}</span>
+                      </button>
+                      {expandedCategories['staff_training'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.training.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Other Staff Costs */}
+                  {staffCosts.other_staff.total > 0 && (
+                    <div>
+                      <button
+                        onClick={() => toggleCategory('staff_other')}
+                        className="w-full flex items-center justify-between py-2 px-2 hover:bg-blue-100 rounded transition-colors"
+                      >
+                        <div className="flex items-center">
+                          {expandedCategories['staff_other'] ? (
+                            <ChevronDownIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4 text-gray-500 mr-2" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700">Other Staff Costs</span>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-600">{formatCurrency(staffCosts.other_staff.total)}</span>
+                      </button>
+                      {expandedCategories['staff_other'] && (
+                        <div className="ml-8 mt-1 space-y-1">
+                          {staffCosts.other_staff.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-1 text-sm">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="text-blue-600">{formatCurrency(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Other Expenses */}
+            {Object.entries(expenseByCategory).map(([category, categoryData]) => {
+              // Skip if this is a staff category (already shown above)
+              if (category.startsWith('STAFF COSTS')) return null;
+              
+              return (
                 <div key={category} className="mb-4">
                   <button
                     onClick={() => toggleCategory(`expense_${category}`)}
@@ -554,8 +885,10 @@ const FinancialStatements = () => {
                     </div>
                   )}
                 </div>
-              ))
-            ) : (
+              );
+            })}
+            
+            {Object.keys(expenseByCategory).length === 0 && totalStaffCosts === 0 && (
               <p className="text-gray-500 text-center py-4">No expense transactions for this period</p>
             )}
             
@@ -799,7 +1132,7 @@ const FinancialStatements = () => {
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Category</th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-500">Account</th>
                   <th className="px-4 py-2 text-right text-sm font-medium text-gray-500">Amount (GHS)</th>
-                 </tr>
+                </tr>
               </thead>
               <tbody>
                 {payments?.items?.map((item, idx) => (
@@ -950,7 +1283,7 @@ const FinancialStatements = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Financial Statements</h1>
             <p className="mt-2 text-sm text-gray-600">
-              View and analyze your church's financial position with budget variance analysis
+              View and analyze your church's financial position with detailed staff cost breakdown
             </p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
