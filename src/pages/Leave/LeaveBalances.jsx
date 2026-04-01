@@ -7,6 +7,8 @@ import {
   PlusCircleIcon,
   UserGroupIcon,
   CalendarIcon,
+  CheckCircleIcon,
+  XCircleIcon,  // Add this import
 } from '@heroicons/react/24/outline';
 import { leaveService } from '../../services/leaveService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -213,7 +215,7 @@ function LeaveBalances() {
                     <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Used</th>
                     <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Remaining</th>
                     <th className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900">Utilization</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {Object.values(balancesByEmployee).map((employee) => (
