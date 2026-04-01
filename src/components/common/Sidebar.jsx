@@ -1,4 +1,4 @@
-// Sidebar.jsx - Corrected with proper null checks
+// Sidebar.jsx - Updated with complete leave management section
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -82,6 +82,14 @@ import {
   CreditCardIcon as BankIcon,
   ArrowPathIcon as ReconciliationIcon,
   ReceiptPercentIcon as TaxReportIcon,
+  
+  // Leave Management Icons
+  CalendarDaysIcon as LeaveRequestIcon,
+  UserGroupIcon as LeaveBalanceIcon2,
+  CalendarIcon as LeaveCalendarIcon2,
+  CheckCircleIcon as LeaveApprovedIcon,
+  ClockIcon as LeavePendingIcon,
+  CurrencyDollarIcon as LeaveAllowanceIcon,
 } from '@heroicons/react/24/outline';
 import { PERMISSIONS } from '../../utils/permissions';
 
@@ -103,7 +111,7 @@ export default function Sidebar() {
     admin: true,
     settings: false,
     payroll: true,
-    leave: false
+    leave: true  // Leave section expanded by default
   });
   
   const [hoveredItem, setHoveredItem] = useState(null);
@@ -228,7 +236,7 @@ export default function Sidebar() {
     ],
   };
 
-  // ==================== LEAVE SECTION ====================
+  // ==================== LEAVE MANAGEMENT SECTION ====================
   const leaveSection = {
     id: 'leave',
     title: 'Leave Management',
@@ -238,12 +246,47 @@ export default function Sidebar() {
     isExpanded: expandedSections.leave,
     onToggle: () => toggleSection('leave'),
     items: [
-      { name: 'Leave Requests', to: '/leave/requests', icon: DocumentCheckIcon, description: 'View all requests' },
-      { name: 'New Request', to: '/leave/requests/new', icon: PlusIcon, description: 'Create leave request' },
-      { name: 'Leave Balances', to: '/leave/balances', icon: LeaveBalanceIcon, description: 'Employee balances' },
-      { name: 'Leave Calendar', to: '/leave/calendar', icon: LeaveCalendarIcon, description: 'Calendar view' },
+      { 
+        name: 'Workflow Dashboard', 
+        to: '/leave/management', 
+        icon: PlayIcon, 
+        description: 'View all leave requests by workflow stage',
+        badge: 'Active',
+        access: ['super_admin', 'admin', 'pastor', 'accountant', 'treasurer']
+      },
+      { divider: true },
+      { 
+        name: 'Leave Requests', 
+        to: '/leave/requests', 
+        icon: LeaveRequestIcon, 
+        description: 'View and manage all leave requests',
+        access: ['super_admin', 'admin', 'pastor', 'accountant', 'treasurer']
+      },
+      { 
+        name: 'New Request', 
+        to: '/leave/requests/new', 
+        icon: PlusIcon, 
+        description: 'Create new leave request from printed form',
+        badge: 'HR Only',
+        access: ['super_admin', 'admin']
+      },
+      { divider: true },
+      { 
+        name: 'Leave Balances', 
+        to: '/leave/balances', 
+        icon: LeaveBalanceIcon2, 
+        description: 'View employee leave balances',
+        access: ['super_admin', 'admin', 'pastor', 'accountant', 'treasurer']
+      },
+      { 
+        name: 'Leave Calendar', 
+        to: '/leave/calendar', 
+        icon: LeaveCalendarIcon2, 
+        description: 'Calendar view of approved leaves',
+        access: ['super_admin', 'admin', 'pastor', 'accountant', 'treasurer']
+      },
     ],
-    access: ['super_admin', 'admin', 'treasurer', 'accountant', 'pastor']
+    access: ['super_admin', 'admin', 'pastor', 'accountant', 'treasurer']
   };
 
   // ==================== REPORTS SECTION ====================
@@ -282,6 +325,7 @@ export default function Sidebar() {
       { divider: true },
       { name: 'Payroll Approval', to: '/payroll/pending-approval', icon: CheckBadgeIcon, description: 'Review and approve payroll', badge: 'Pending', access: ['super_admin', 'admin', 'treasurer'] },
       { name: 'Transaction Approvals', to: '/treasurer/transaction-approvals', icon: CheckBadgeIcon, description: 'Review and approve transactions' },
+      { name: 'Leave Allowance Approval', to: '/leave/management', icon: LeaveAllowanceIcon, description: 'Approve leave allowances', badge: 'New', access: ['super_admin', 'admin', 'treasurer'] },
       { divider: true },
       { name: 'Budget Management', to: '/treasurer/budgets', icon: ChartBarIcon, description: 'View and manage all budgets' },
       { name: 'Create Budget', to: '/treasurer/budgets/create', icon: PlusIcon, description: 'Create new revenue or expense budget' },
@@ -335,6 +379,7 @@ export default function Sidebar() {
       { name: 'Audit Review', to: '/auditor/review', icon: MagnifyingGlassIcon },
       { name: 'Payroll Audit', to: '/payroll/runs', icon: PayrollIcon },
       { name: 'Journal Audit', to: '/accountant/journal-entries', icon: JournalIcon },
+      { name: 'Leave Audit', to: '/leave/requests', icon: LeaveIcon, description: 'Audit leave requests', badge: 'New' },
       { name: 'Audit Reports', to: '/auditor/reports', icon: DocumentTextIcon },
       { name: 'Compliance Check', to: '/auditor/compliance', icon: CheckCircleIcon },
     ],
@@ -352,7 +397,7 @@ export default function Sidebar() {
     onToggle: () => toggleSection('pastor'),
     items: [
       { name: 'Dashboard', to: '/pastor/dashboard', icon: HomeIcon },
-      { name: 'Leave Requests', to: '/leave/requests', icon: DocumentCheckIcon },
+      { name: 'Leave Approvals', to: '/leave/management', icon: LeavePendingIcon, description: 'Approve leave requests', badge: 'Pending' },
       { name: 'Budget Approvals', to: '/pastor/budget-approvals', icon: ClipboardDocumentListIcon },
       { name: 'Active Budgets', to: '/pastor/active-budgets', icon: ChartBarIcon },
       { name: 'Financial Summary', to: '/reports/financial', icon: PresentationChartBarIcon },
@@ -376,6 +421,7 @@ export default function Sidebar() {
       { name: 'Dashboard', to: '/committee/dashboard', icon: HomeIcon },
       { name: 'Budget Review', to: '/committee/budget-review', icon: ChartBarIcon },
       { name: 'Payroll Overview', to: '/payroll/dashboard', icon: PayrollIcon },
+      { name: 'Leave Summary', to: '/leave/requests', icon: LeaveIcon, description: 'View leave statistics' },
       { name: 'Financial Statements', to: '/accountant/financial-statements', icon: FinancialStatementsIcon },
       { name: 'Financial Review', to: '/committee/financial-review', icon: DocumentTextIcon },
       { name: 'Committee Voting', to: '/committee/voting', icon: HandRaisedIcon },
@@ -454,7 +500,7 @@ export default function Sidebar() {
     dashboardSection,
     accountingSection,
     payrollSection,
-    leaveSection,
+    leaveSection,  // Leave section added after payroll
     financialSection,
     managementSection,
     reportsSection,
@@ -571,7 +617,13 @@ export default function Sidebar() {
                                     />
                                     <span className="flex-1 truncate">{item.name}</span>
                                     {item.badge && (
-                                      <span className="ml-2 px-2 py-0.5 text-[10px] font-medium bg-[rgb(31,178,86)] text-white rounded-full animate-pulse">
+                                      <span className={`ml-2 px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                                        item.badge === 'Active' ? 'bg-green-500 text-white animate-pulse' :
+                                        item.badge === 'HR Only' ? 'bg-orange-500 text-white' :
+                                        item.badge === 'New' ? 'bg-blue-500 text-white' :
+                                        item.badge === 'Pending' ? 'bg-yellow-500 text-white' :
+                                        'bg-[rgb(31,178,86)] text-white'
+                                      }`}>
                                         {item.badge}
                                       </span>
                                     )}

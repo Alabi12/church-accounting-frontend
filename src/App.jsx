@@ -1,3 +1,4 @@
+// App.jsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -116,7 +117,7 @@ import EmployeeList from './pages/Payroll/EmployeeList';
 import EmployeeForm from './pages/Payroll/EmployeeForm';
 import EmployeeDetails from './pages/Payroll/EmployeeDetails';
 
-// ========== PAYROLL PAGES (Streamlined Workflow) ==========
+// ========== PAYROLL PAGES ==========
 import PayrollDashboard from './pages/Payroll/PayrollDashboard';
 import PayrollCalculate from './pages/Payroll/PayrollCalculate';
 import PayrollRunList from './pages/Payroll/PayrollRunList';
@@ -131,8 +132,10 @@ import TaxTables from './pages/Payroll/TaxTables';
 import TaxTableForm from './pages/Payroll/TaxTableForm';
 
 // ========== LEAVE PAGES ==========
+import LeaveManagement from './pages/Leave/LeaveManagement';
 import LeaveRequests from './pages/Leave/LeaveRequests';
 import LeaveRequestForm from './pages/Leave/LeaveRequestForm';
+import LeaveRequestDetails from './pages/Leave/LeaveRequestDetails';
 import LeaveBalances from './pages/Leave/LeaveBalances';
 import LeaveCalendar from './pages/Leave/LeaveCalendar';
 
@@ -158,7 +161,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <ErrorBoundary>
-       <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SocketProvider>
             <Router>
@@ -268,7 +271,7 @@ function App() {
                                   <Route path="dashboard" element={<PayrollDashboard />} />
                                   
                                   {/* STEP 1: Accountant calculates payroll */}
-                                  <Route path="/payroll/calculate" element={<PayrollCalculate />} />
+                                  <Route path="calculate" element={<PayrollCalculate />} />
                                   
                                   {/* Payroll Runs */}
                                   <Route path="runs">
@@ -276,7 +279,7 @@ function App() {
                                     <Route path=":id" element={<PayrollRunDetails />} />
                                   </Route>
                                   
-                                  {/* STEP 2: Treasurer approval (same as pending-approval) */}
+                                  {/* STEP 2: Treasurer approval */}
                                   <Route path="pending-approval" element={<PayrollRunList />} />
                                   
                                   {/* STEP 3: Accountant posts to ledger */}
@@ -303,11 +306,32 @@ function App() {
                                   </Route>
                                 </Route>
 
-                                {/* ========== ADMIN ROUTES (Employee Management moved here) ========== */}
+                                {/* ========== LEAVE MANAGEMENT ROUTES ========== */}
+                                <Route path="/leave">
+                                  <Route index element={<Navigate to="/leave/management" replace />} />
+                                  
+                                  {/* Main Dashboard - Workflow stages */}
+                                  <Route path="management" element={<LeaveManagement />} />
+                                  
+                                  {/* Leave Requests */}
+                                  <Route path="requests">
+                                    <Route index element={<LeaveRequests />} />
+                                    <Route path="new" element={<LeaveRequestForm />} />
+                                    <Route path=":id" element={<LeaveRequestDetails />} />
+                                  </Route>
+                                  
+                                  {/* Leave Balances */}
+                                  <Route path="balances" element={<LeaveBalances />} />
+                                  
+                                  {/* Leave Calendar */}
+                                  <Route path="calendar" element={<LeaveCalendar />} />
+                                </Route>
+
+                                {/* ========== ADMIN ROUTES ========== */}
                                 <Route path="/admin">
                                   <Route index element={<Navigate to="/admin/users" replace />} />
                                   
-                                  {/* Employee Management - Moved from Payroll */}
+                                  {/* Employee Management */}
                                   <Route path="employees">
                                     <Route index element={<EmployeeList />} />
                                     <Route path="new" element={<EmployeeForm />} />
@@ -370,17 +394,6 @@ function App() {
                                   <Route path="budget-review" element={<BudgetReview />} />
                                   <Route path="financial-review" element={<FinancialReview />} />
                                   <Route path="voting" element={<CommitteeVoting />} />
-                                </Route>
-
-                                {/* ========== LEAVE ROUTES ========== */}
-                                <Route path="/leave">
-                                  <Route index element={<Navigate to="/leave/requests" replace />} />
-                                  <Route path="requests">
-                                    <Route index element={<LeaveRequests />} />
-                                    <Route path="new" element={<LeaveRequestForm />} />
-                                  </Route>
-                                  <Route path="balances" element={<LeaveBalances />} />
-                                  <Route path="calendar" element={<LeaveCalendar />} />
                                 </Route>
 
                                 {/* Profile & Settings */}
