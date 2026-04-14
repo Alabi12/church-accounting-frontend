@@ -203,7 +203,7 @@ export default function Sidebar() {
       { name: 'Financial Statements', to: '/accountant/financial-statements', icon: FinancialStatementsIcon, description: 'Income Statement, Balance Sheet', badge: 'Updated' },
       { name: 'Account Management', to: '/accountant/account-management', icon: BuildingOfficeIcon, description: 'Manage accounts' },
       { name: 'Reconciliation', to: '/accountant/reconciliation', icon: ReconciliationIcon, description: 'Bank & cash reconciliation' },
-      { name: 'Tax Reports', to: '/accountant/tax-reports', icon: TaxReportIcon, description: 'PAYE, SSNIT, Withholding' },
+
     ],
     access: ['super_admin', 'admin', 'accountant']
   };
@@ -332,7 +332,7 @@ export default function Sidebar() {
       { name: 'Budget Variance Report', to: '/treasurer/budget-variance', icon: PresentationChartBarIcon, description: 'Analyze budget vs actual performance', badge: 'New' },
       { divider: true },
       { name: 'Cash Flow', to: '/treasurer/cash-flow', icon: CurrencyDollarIcon, description: 'Cash flow analysis' },
-      { name: 'Financial Overview', to: '/treasurer/financial-overview', icon: PresentationChartBarIcon, description: 'Financial summary' },
+  
       { name: 'Financial Statements', to: '/accountant/financial-statements', icon: FinancialStatementsIcon, description: 'View income statement and balance sheet' },
     ],
     access: ['super_admin', 'admin', 'treasurer']

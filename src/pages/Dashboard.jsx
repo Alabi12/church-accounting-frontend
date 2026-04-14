@@ -64,6 +64,15 @@ const Dashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('6months');
   
+  // Date range selection state
+  const [viewMode, setViewMode] = useState('current'); // 'current', 'month', 'ytd'
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  
   // Financial summary state
   const [financialSummary, setFinancialSummary] = useState({
     totalIncome: 0,
@@ -76,7 +85,8 @@ const Dashboard = () => {
     todayExpenses: 0,
     todayNet: 0,
     incomeByCategory: [],
-    expenseByCategory: []
+    expenseByCategory: [],
+    period: 'Current Month'
   });
   
   // Stats state
@@ -116,177 +126,174 @@ const Dashboard = () => {
   const [pendingPayrollRuns, setPendingPayrollRuns] = useState([]);
   const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
 
-  // Fetch all dashboard data
-  const fetchDashboardData = useCallback(async (showToast = false) => {
-    try {
-      if (showToast) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      
-      // Fetch data in parallel
-      const [
-        statsData,
-        recentEntriesData,
-        trendData,
-        accountBalancesData,
-        alertsData,
-        journalEntriesData,
-        accountsData,
-        pendingPayrollData
-      ] = await Promise.allSettled([
-        accountantService.getDashboardStats(),
-        accountantService.getRecentEntries(10),
-        getMonthlyTrendData(),
-        accountantService.getAccountBalances(),
-        accountantService.getAlerts(),
-        accountantService.getJournalEntries({ perPage: 5, status: 'PENDING' }),
-        accountantService.getAccounts({ perPage: 100 }),
-        payrollService.getPayrollRuns({ status: 'SUBMITTED' })
-      ]);
+  // Get available years for dropdown
+  const getAvailableYears = () => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+  };
 
-      // Process Dashboard Stats
-      if (statsData.status === 'fulfilled' && statsData.value) {
-        const data = statsData.value;
-        setFinancialSummary(prev => ({
-          ...prev,
-          totalIncome: data.totalIncome || 0,
-          totalExpenses: data.totalExpenses || 0,
-          netIncome: (data.totalIncome || 0) - (data.totalExpenses || 0),
-          incomeByCategory: data.incomeByCategory || [],
-          expenseByCategory: data.expenseByCategory || []
-        }));
-
-        if (data.journalEntryStats) {
-          const pending = data.journalEntryStats.pending || 0;
-          const posted = data.journalEntryStats.posted || 0;
-          setStats(prev => ({
-            ...prev,
-            postedCount: posted,
-            draftCount: data.journalEntryStats.draft || 0,
-            pendingCount: pending,
-            voidCount: data.journalEntryStats.void || 0,
-            approvalRate: (posted + (data.journalEntryStats.approved || 0)) > 0 
-              ? ((posted / (posted + pending)) * 100) 
-              : 0
-          }));
-        }
-
-        if (data.accountCounts) {
-          setStats(prev => ({
-            ...prev,
-            accountCount: Object.values(data.accountCounts).reduce((a, b) => a + b, 0)
-          }));
-        }
-      }
-
-      // Process Monthly Trend
-      if (trendData.status === 'fulfilled' && trendData.value) {
-        setMonthlyTrend(trendData.value);
-      }
-
-      // Process Account Balances
-      if (accountBalancesData.status === 'fulfilled' && accountBalancesData.value) {
-        const balances = accountBalancesData.value;
-        setAccountBalances({
-          ASSET: balances.ASSET || 0,
-          LIABILITY: balances.LIABILITY || 0,
-          EQUITY: balances.EQUITY || 0,
-          REVENUE: balances.REVENUE || 0,
-          EXPENSE: balances.EXPENSE || 0
-        });
-
-        setStats(prev => ({
-          ...prev,
-          assetBalance: balances.ASSET || 0,
-          liabilityBalance: balances.LIABILITY || 0,
-          equityBalance: balances.EQUITY || 0,
-          revenueBalance: balances.REVENUE || 0,
-          expenseBalance: balances.EXPENSE || 0
-        }));
-      }
-
-      // Process Recent Entries
-      if (recentEntriesData.status === 'fulfilled' && recentEntriesData.value) {
-        setRecentJournals(recentEntriesData.value.entries || recentEntriesData.value || []);
-      } else if (journalEntriesData.status === 'fulfilled' && journalEntriesData.value) {
-        const entries = journalEntriesData.value.entries || journalEntriesData.value.items || [];
-        setPendingJournalEntries(entries.filter(e => e.status === 'PENDING'));
-        setRecentJournals(entries.slice(0, 5));
-      }
-
-      // Process Accounts for cash/bank balances
-      if (accountsData.status === 'fulfilled' && accountsData.value) {
-        const accounts = accountsData.value.accounts || [];
-        
-        let cashBalance = 0;
-        let bankBalance = 0;
-        
-        accounts.forEach(acc => {
-          if (acc.account_code && acc.account_code.startsWith('1010')) {
-            cashBalance += acc.balance || 0;
-          }
-          if (acc.account_code && acc.account_code.startsWith('1020')) {
-            bankBalance += acc.balance || 0;
-          }
-        });
-
-        const sorted = [...accounts]
-          .filter(acc => Math.abs(acc.balance || 0) > 0)
-          .sort((a, b) => Math.abs(b.balance || 0) - Math.abs(a.balance || 0))
-          .slice(0, 5);
-        setTopAccounts(sorted);
-
-        setStats(prev => ({
-          ...prev,
-          cashBalance,
-          bankBalance,
-          totalBalance: cashBalance + bankBalance
-        }));
-      }
-
-      // Process Alerts
-      if (alertsData.status === 'fulfilled' && alertsData.value) {
-        setAlerts(alertsData.value.alerts || []);
-      }
-
-      // Process Pending Payroll Runs
-      if (pendingPayrollData.status === 'fulfilled' && pendingPayrollData.value) {
-        const runs = pendingPayrollData.value.runs || [];
-        const formattedRuns = runs.map(run => ({
-          id: run.id,
-          runNumber: run.run_number,
-          periodStart: run.period_start,
-          periodEnd: run.period_end,
-          totalGross: run.total_gross,
-          totalNet: run.total_net,
-          employeeCount: run.employee_count,
-          status: run.status,
-          submittedBy: run.submitted_by_name || run.created_by_name || 'Accountant',
-          submittedAt: run.submitted_at || run.created_at
-        }));
-        setPendingPayrollRuns(formattedRuns);
-        
-        // Update pending count to include payroll runs
-        setStats(prev => ({
-          ...prev,
-          pendingCount: (prev.pendingCount || 0) + formattedRuns.length
-        }));
-      }
-
-      if (showToast) {
-        toast.success('Dashboard refreshed');
-      }
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error('Failed to load some dashboard data');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+ // Fetch dashboard data based on view mode
+const fetchDashboardData = useCallback(async (showToast = false) => {
+  try {
+    if (showToast) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
-  }, [selectedTimeframe]);
+    
+    let statsData;
+    let periodLabel = '';
+    
+    // Fetch data based on view mode
+    if (viewMode === 'ytd') {
+      statsData = await accountantService.getDashboardStats({ 
+        year: selectedYear,
+        month: null
+      });
+      periodLabel = `Year to Date ${selectedYear}`;
+    } else if (viewMode === 'month') {
+      statsData = await accountantService.getDashboardStats({ 
+        month: selectedMonth, 
+        year: selectedYear 
+      });
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+      periodLabel = `${monthNames[selectedMonth - 1]} ${selectedYear}`;
+    } else {
+      statsData = await accountantService.getDashboardStats();
+      periodLabel = 'Current Month';
+    }
+    
+    console.log('Dashboard Stats Data:', statsData); // DEBUG: Log the data
+    
+    // Process Dashboard Stats - THIS IS WHERE THE DATA SHOULD BE SET
+    if (statsData) {
+      // Update financial summary
+      setFinancialSummary({
+        totalIncome: statsData.totalIncome || 0,
+        totalExpenses: statsData.totalExpenses || 0,
+        netIncome: statsData.netIncome || 0,
+        incomeByCategory: statsData.incomeByCategory || [],
+        expenseByCategory: statsData.expenseByCategory || [],
+        period: periodLabel
+      });
+      
+      // Update stats with ALL the data from statsData
+      setStats(prev => ({
+        ...prev,
+        // These are the key fields for your dashboard cards
+        cashBalance: statsData.cashBalance || 0,
+        bankBalance: statsData.bankBalance || 0,
+        assetBalance: statsData.assetBalance || 0,
+        liabilityBalance: statsData.liabilityBalance || 0,
+        equityBalance: statsData.equityBalance || 0,
+        totalBalance: (statsData.cashBalance || 0) + (statsData.bankBalance || 0),
+        // Journal entry stats
+        postedCount: statsData.journalEntryStats?.posted || 0,
+        pendingCount: statsData.journalEntryStats?.pending || 0,
+        draftCount: statsData.journalEntryStats?.draft || 0,
+        // Account counts
+        accountCount: statsData.accountCounts ? Object.values(statsData.accountCounts).reduce((a, b) => a + b, 0) : 0,
+        approvalRate: statsData.journalEntryStats?.posted > 0 ? 100 : 0
+      }));
+    }
+    
+    // Fetch other data in parallel (optional - for additional features)
+    const [
+      recentEntriesData,
+      trendData,
+      accountBalancesData,
+      alertsData,
+      journalEntriesData,
+      accountsData,
+      pendingPayrollData
+    ] = await Promise.allSettled([
+      accountantService.getRecentEntries(10),
+      getMonthlyTrendData(),
+      accountantService.getAccountBalances(),
+      accountantService.getAlerts(),
+      accountantService.getJournalEntries({ perPage: 5, status: 'PENDING' }),
+      accountantService.getAccounts({ perPage: 100 }),
+      payrollService.getPayrollRuns({ status: 'SUBMITTED' })
+    ]);
+
+    // Process Monthly Trend
+    if (trendData.status === 'fulfilled' && trendData.value) {
+      setMonthlyTrend(trendData.value);
+    }
+
+    // Process Account Balances (only if needed for additional info)
+    if (accountBalancesData.status === 'fulfilled' && accountBalancesData.value) {
+      const balances = accountBalancesData.value;
+      setAccountBalances({
+        ASSET: balances.ASSET || 0,
+        LIABILITY: balances.LIABILITY || 0,
+        EQUITY: balances.EQUITY || 0,
+        REVENUE: balances.REVENUE || 0,
+        EXPENSE: balances.EXPENSE || 0
+      });
+    }
+
+    // Process Recent Entries
+    if (recentEntriesData.status === 'fulfilled' && recentEntriesData.value) {
+      setRecentJournals(recentEntriesData.value.entries || recentEntriesData.value || []);
+    } else if (journalEntriesData.status === 'fulfilled' && journalEntriesData.value) {
+      const entries = journalEntriesData.value.entries || journalEntriesData.value.items || [];
+      setPendingJournalEntries(entries.filter(e => e.status === 'PENDING'));
+      setRecentJournals(entries.slice(0, 5));
+    }
+
+    // Process Accounts for top accounts (optional)
+    if (accountsData.status === 'fulfilled' && accountsData.value) {
+      const accounts = accountsData.value.accounts || [];
+      const sorted = [...accounts]
+        .filter(acc => Math.abs(acc.balance || 0) > 0)
+        .sort((a, b) => Math.abs(b.balance || 0) - Math.abs(a.balance || 0))
+        .slice(0, 5);
+      setTopAccounts(sorted);
+    }
+
+    // Process Alerts
+    if (alertsData.status === 'fulfilled' && alertsData.value) {
+      setAlerts(alertsData.value.alerts || []);
+    }
+
+    // Process Pending Payroll Runs
+    if (pendingPayrollData.status === 'fulfilled' && pendingPayrollData.value) {
+      const runs = pendingPayrollData.value.runs || [];
+      const formattedRuns = runs.map(run => ({
+        id: run.id,
+        runNumber: run.run_number,
+        periodStart: run.period_start,
+        periodEnd: run.period_end,
+        totalGross: run.total_gross,
+        totalNet: run.total_net,
+        employeeCount: run.employee_count,
+        status: run.status,
+        submittedBy: run.submitted_by_name || run.created_by_name || 'Accountant',
+        submittedAt: run.submitted_at || run.created_at
+      }));
+      setPendingPayrollRuns(formattedRuns);
+      
+      // Update pending count
+      setStats(prev => ({
+        ...prev,
+        pendingCount: (prev.pendingCount || 0) + formattedRuns.length
+      }));
+    }
+
+    if (showToast) {
+      toast.success(`Dashboard refreshed - ${periodLabel}`);
+    }
+
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    toast.error('Failed to load some dashboard data');
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, [viewMode, selectedMonth, selectedYear, selectedTimeframe]);
 
   const getMonthlyTrendData = async () => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -318,7 +325,7 @@ const Dashboard = () => {
     fetchDashboardData();
     const interval = setInterval(() => fetchDashboardData(true), 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [fetchDashboardData, selectedTimeframe]);
+  }, [fetchDashboardData, selectedTimeframe, viewMode, selectedMonth, selectedYear]);
 
   const handleRefresh = () => {
     fetchDashboardData(true);
@@ -453,7 +460,7 @@ const Dashboard = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Financial Dashboard</h1>
               <p className="text-sm text-gray-500 mt-1">
-                Welcome back, {user?.fullName || user?.name || 'User'}! Here's your real-time church financial data.
+                Welcome back, {user?.fullName || user?.name || 'User'}! Showing data for: <strong>{financialSummary.period}</strong>
               </p>
             </div>
             <button
@@ -469,6 +476,90 @@ const Dashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Date Range Selector */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewMode('current')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'current' 
+                    ? 'bg-[rgb(31,178,86)] text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Current Month
+              </button>
+              <button
+                onClick={() => setViewMode('month')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'month' 
+                    ? 'bg-[rgb(31,178,86)] text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Select Month
+              </button>
+              <button
+                onClick={() => setViewMode('ytd')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'ytd' 
+                    ? 'bg-[rgb(31,178,86)] text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Year to Date
+              </button>
+            </div>
+            
+            {viewMode === 'month' && (
+              <div className="flex gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                >
+                  {[...Array(12)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(2026, i, 1).toLocaleString('default', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+                >
+                  {getAvailableYears().map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {viewMode === 'ytd' && (
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-[rgb(31,178,86)] focus:border-[rgb(31,178,86)]"
+              >
+                {getAvailableYears().map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            )}
+            
+            {(viewMode === 'month' || viewMode === 'ytd') && (
+              <button
+                onClick={() => fetchDashboardData(true)}
+                className="px-4 py-2 bg-[rgb(31,178,86)] text-white rounded-lg hover:bg-[rgb(25,142,69)] transition-colors"
+              >
+                Apply
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Alerts Section */}
         {alerts.length > 0 && (
           <div className="mb-6 space-y-2">
@@ -518,21 +609,19 @@ const Dashboard = () => {
         {/* Main Financial Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard
-            title="Total Income (YTD)"
+            title="Total Income"
             value={financialSummary.totalIncome}
-            subtitle="Year to date"
+            subtitle={financialSummary.period}
             icon={ArrowTrendingUpIcon}
             color="green"
-            trend={12.5}
             isCurrency={true}
           />
           <StatCard
-            title="Total Expenses (YTD)"
+            title="Total Expenses"
             value={financialSummary.totalExpenses}
-            subtitle="Year to date"
+            subtitle={financialSummary.period}
             icon={ArrowTrendingDownIcon}
             color="red"
-            trend={-8.2}
             isCurrency={true}
           />
           <StatCard
@@ -609,6 +698,8 @@ const Dashboard = () => {
           />
         </div>
 
+        {/* Rest of the component remains the same... */}
+        
         {/* Pending Payroll Runs Section */}
         {pendingPayrollRuns.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
@@ -638,7 +729,7 @@ const Dashboard = () => {
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Employees</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted By</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {pendingPayrollRuns.map((run) => (
@@ -676,7 +767,7 @@ const Dashboard = () => {
                             title="Approve"
                           >
                             <CheckCircleIcon className="h-4 w-4" />
-          </button>
+                          </button>
                           <button
                             onClick={() => handleRejectPayroll(run.id)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
@@ -869,7 +960,7 @@ const Dashboard = () => {
             ) : (
               <div className="text-center py-8 text-gray-400">
                 <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No income category data available</p>
+                <p>No income category data available for this period</p>
               </div>
             )}
           </div>
@@ -913,7 +1004,7 @@ const Dashboard = () => {
             ) : (
               <div className="text-center py-8 text-gray-400">
                 <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No expense category data available</p>
+                <p>No expense category data available for this period</p>
               </div>
             )}
           </div>
@@ -981,24 +1072,24 @@ const Dashboard = () => {
                     <tr key={journal.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(journal.entry_date || journal.date)}
-                       </td>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
                         {journal.entry_number || journal.journalNumber}
-                       </td>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                         {journal.description || '-'}
-                       </td>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
                         {journal.total_debit ? formatCurrency(journal.total_debit) : '-'}
-                       </td>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
                         {journal.total_credit ? formatCurrency(journal.total_credit) : '-'}
-                       </td>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(journal.status)}`}>
                           {journal.status}
                         </span>
-                       </td>
+                      </td>
                     </tr>
                   ))
                 ) : (
