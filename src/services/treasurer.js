@@ -1,6 +1,7 @@
 // services/treasurer.js
 import api from './api';
 
+
 export const treasurerService = {
   // ==================== DASHBOARD STATS ====================
   
@@ -14,6 +15,109 @@ export const treasurerService = {
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching dashboard stats:', error);
+      throw error;
+    }
+  },
+
+  // ==================== FINANCIAL OVERVIEW ====================
+
+  /**
+   * Get income vs expenses comparison
+   * @param {Object} params - { period, startDate, endDate }
+   * @returns {Promise}
+   */
+  getIncomeVsExpenses: async (params = {}) => {
+    try {
+      console.log('📡 Fetching income vs expenses data:', params);
+      const response = await api.get('/treasurer/income-vs-expenses', { params });
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching income vs expenses:', error);
+      return {
+        income: 0,
+        expenses: 0,
+        net: 0,
+        incomeChange: 0,
+        expenseChange: 0,
+        data: []
+      };
+    }
+  },
+
+  /**
+   * Get category breakdown
+   * @param {string} period - 'month', 'quarter', 'year'
+   * @returns {Promise}
+   */
+  getCategoryBreakdown: async (period = 'month') => {
+    try {
+      const response = await api.get(`/treasurer/category-breakdown?period=${period}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching category breakdown:', error);
+      return { income: [], expenses: [] };
+    }
+  },
+
+  /**
+   * Get financial overview (summary)
+   * @param {Object} params - { period, startDate, endDate }
+   * @returns {Promise}
+   */
+  getFinancialOverview: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.period) queryParams.append('period', params.period);
+      if (params.startDate) queryParams.append('startDate', params.startDate);
+      if (params.endDate) queryParams.append('endDate', params.endDate);
+      
+      const url = `/treasurer/financial-overview${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching financial overview:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get balance sheet data
+   * @param {Object} params - { asAt, period }
+   * @returns {Promise}
+   */
+  getBalanceSheet: async (params = {}) => {
+    try {
+      console.log('📡 Fetching balance sheet data:', params);
+      const response = await api.get('/accounting/balance-sheet', { params });
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching balance sheet:', error);
+      return {
+        assets: { total: 0, items: [] },
+        liabilities: { total: 0, items: [] },
+        equity: { total: 0, items: [] }
+      };
+    }
+  },
+
+  /**
+   * Get cash flow analysis
+   * @param {Object} params - { period, startDate, endDate, accountId }
+   * @returns {Promise}
+   */
+  getCashFlow: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.period) queryParams.append('period', params.period);
+      if (params.startDate) queryParams.append('startDate', params.startDate);
+      if (params.endDate) queryParams.append('endDate', params.endDate);
+      if (params.accountId) queryParams.append('accountId', params.accountId);
+      
+      const url = `/treasurer/cash-flow${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching cash flow:', error);
       throw error;
     }
   },
@@ -69,60 +173,11 @@ export const treasurerService = {
    * @param {Object} budgetData 
    * @returns {Promise}
    */
-  // Create budget with full details
   createBudget: async (budgetData) => {
     const response = await api.post('/treasurer/budgets', budgetData);
     return response.data;
   },
   
-  // Get all budgets with filters
-  getBudgets: async (params = {}) => {
-    const response = await api.get('/treasurer/budgets', { params });
-    return response.data;
-  },
-  
-  // Get single budget
-  getBudget: async (id) => {
-    const response = await api.get(`/treasurer/budgets/${id}`);
-    return response.data;
-  },
-  
-  // Update budget
-  updateBudget: async (id, data) => {
-    const response = await api.put(`/treasurer/budgets/${id}`, data);
-    return response.data;
-  },
-  
-  // Submit budget for approval
-  submitBudgetForApproval: async (id) => {
-    const response = await api.post(`/treasurer/budgets/${id}/submit`);
-    return response.data;
-  },
-  
-  // Delete budget
-  deleteBudget: async (id) => {
-    const response = await api.delete(`/treasurer/budgets/${id}`);
-    return response.data;
-  },
-  
-  // Get budget variance analysis
-  getBudgetVariance: async (params = {}) => {
-    const response = await api.get('/treasurer/budget-variance', { params });
-    return response.data;
-  },
-  
-  // Get Chart of Accounts for budget categories
-  getChartOfAccounts: async (params = {}) => {
-    const response = await api.get('/accounting/chart-of-accounts', { params });
-    return response.data;
-  },
-  
-  // Get accounts by type for budget selection
-  getAccountsByType: async (accountType) => {
-    const response = await api.get('/accounting/accounts/by-category');
-    return response.data;
-  },
-
   /**
    * Update a budget
    * @param {number} budgetId 
@@ -173,6 +228,26 @@ export const treasurerService = {
   },
 
   /**
+   * Get budget variance analysis
+   * @param {Object} params - { year, type, department }
+   * @returns {Promise}
+   */
+  getBudgetVariance: async (params = {}) => {
+    const response = await api.get('/treasurer/budget-variance', { params });
+    return response.data;
+  },
+
+  /**
+   * Get Chart of Accounts for budget categories
+   * @param {Object} params - { type, category }
+   * @returns {Promise}
+   */
+  getChartOfAccounts: async (params = {}) => {
+    const response = await api.get('/accounting/chart-of-accounts', { params });
+    return response.data;
+  },
+
+  /**
    * Get budget comments
    * @param {number} budgetId 
    * @returns {Promise}
@@ -209,7 +284,7 @@ export const treasurerService = {
   
   /**
    * Get expenses with filters
-   * @param {Object} params 
+   * @param {Object} params - { status, category, startDate, endDate, search, page, perPage }
    * @returns {Promise}
    */
   getExpenses: async (params = {}) => {
@@ -329,21 +404,6 @@ export const treasurerService = {
   },
 
   /**
-   * Get category breakdown
-   * @param {string} period - 'month', 'quarter', 'year'
-   * @returns {Promise}
-   */
-  getCategoryBreakdown: async (period = 'month') => {
-    try {
-      const response = await api.get(`/treasurer/category-breakdown?period=${period}`);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error fetching category breakdown:', error);
-      return [];
-    }
-  },
-
-  /**
    * Get alerts
    * @returns {Promise}
    */
@@ -389,49 +449,6 @@ export const treasurerService = {
   },
 
   /**
-   * Get cash flow analysis
-   * @param {Object} params 
-   * @returns {Promise}
-   */
-  getCashFlow: async (params = {}) => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (params.period) queryParams.append('period', params.period);
-      if (params.startDate) queryParams.append('startDate', params.startDate);
-      if (params.endDate) queryParams.append('endDate', params.endDate);
-      if (params.accountId) queryParams.append('accountId', params.accountId);
-      
-      const url = `/treasurer/cash-flow${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      const response = await api.get(url);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error fetching cash flow:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Get financial overview
-   * @param {Object} params 
-   * @returns {Promise}
-   */
-  getFinancialOverview: async (params = {}) => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (params.period) queryParams.append('period', params.period);
-      if (params.startDate) queryParams.append('startDate', params.startDate);
-      if (params.endDate) queryParams.append('endDate', params.endDate);
-      
-      const url = `/treasurer/financial-overview${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-      const response = await api.get(url);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Error fetching financial overview:', error);
-      throw error;
-    }
-  },
-
-  /**
    * Get budget status report
    * @returns {Promise}
    */
@@ -442,6 +459,95 @@ export const treasurerService = {
     } catch (error) {
       console.error('❌ Error fetching budget status:', error);
       return [];
+    }
+  },
+
+  /**
+   * Get cash accounts
+   * @returns {Promise}
+   */
+  getCashAccounts: async () => {
+    try {
+      console.log('📡 Fetching cash accounts...');
+      const response = await api.get('/accounting/accounts', { 
+        params: { 
+          account_type: 'ASSET',
+          category: 'Cash'
+        } 
+      });
+      const accounts = response.data.accounts || response.data || [];
+      return { accounts };
+    } catch (error) {
+      console.error('❌ Error fetching cash accounts:', error);
+      return { accounts: [] };
+    }
+  },
+
+  /**
+   * Get bank accounts
+   * @returns {Promise}
+   */
+  getBankAccounts: async () => {
+    try {
+      console.log('📡 Fetching bank accounts...');
+      const response = await api.get('/accounting/accounts', { 
+        params: { 
+          account_type: 'ASSET',
+          category: 'Bank'
+        } 
+      });
+      const accounts = response.data.accounts || response.data || [];
+      return { accounts };
+    } catch (error) {
+      console.error('❌ Error fetching bank accounts:', error);
+      return { accounts: [] };
+    }
+  },
+
+  /**
+   * Get transaction approvals
+   * @param {Object} params 
+   * @returns {Promise}
+   */
+  getTransactionApprovals: async (params = {}) => {
+    try {
+      const response = await api.get('/treasurer/transaction-approvals', { params });
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching transaction approvals:', error);
+      return { transactions: [] };
+    }
+  },
+
+  /**
+   * Approve a transaction
+   * @param {number} transactionId 
+   * @param {Object} data 
+   * @returns {Promise}
+   */
+  approveTransaction: async (transactionId, data = {}) => {
+    try {
+      const response = await api.post(`/treasurer/transactions/${transactionId}/approve`, data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error approving transaction:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Reject a transaction
+   * @param {number} transactionId 
+   * @param {Object} data 
+   * @returns {Promise}
+   */
+  rejectTransaction: async (transactionId, data = {}) => {
+    try {
+      const response = await api.post(`/treasurer/transactions/${transactionId}/reject`, data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error rejecting transaction:', error);
+      throw error;
     }
   },
 
@@ -461,3 +567,5 @@ export const treasurerService = {
     }
   }
 };
+
+export default treasurerService;
