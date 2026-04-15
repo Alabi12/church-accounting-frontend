@@ -1,4 +1,4 @@
-// App.jsx - Optimized with Code Splitting
+// App.jsx - Optimized with Code Splitting & AI Assistant
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -18,6 +18,9 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RoleBasedRoute from './components/auth/RoleBasedRoute';
+
+// AI Assistant Component (keep synchronous as it's a floating button)
+// import AIAssistant from './components/AI/AIAssistant';
 
 // ========== LAZY LOAD MAIN PAGES ==========
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -408,6 +411,8 @@ function App() {
                     />
                   </Route>
                 </Routes>
+                {/* AI Assistant - Appears on all pages */}
+                {/* <AIAssistant /> */}
               </div>
             </Router>
           </SocketProvider>
