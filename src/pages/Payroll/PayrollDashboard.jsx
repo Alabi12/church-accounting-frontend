@@ -231,7 +231,7 @@ function PayrollDashboard() {
             title="Current Month Payroll"
             value={currentMonthPayroll?.total_net || 0}
             subtitle={`${currentMonthPayroll?.employee_count || 0} employees`}
-            icon={CurrencyDollarIcon}
+            icon={BanknotesIcon}
             color="green"
             isCurrency={true}
           />
