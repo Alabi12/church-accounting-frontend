@@ -19,9 +19,6 @@ import Register from './components/auth/Register';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RoleBasedRoute from './components/auth/RoleBasedRoute';
 
-// AI Assistant Component (keep synchronous as it's a floating button)
-// import AIAssistant from './components/AI/AIAssistant';
-
 // ========== LAZY LOAD MAIN PAGES ==========
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -103,10 +100,12 @@ const BudgetDetail = lazy(() => import('./pages/Treasurer/BudgetDetail'));
 const BudgetVarianceReport = lazy(() => import('./pages/Treasurer/BudgetVarianceReport'));
 
 // ========== LAZY LOAD FINANCE COMMITTEE PAGES ==========
+// IMPORTANT: Make sure these files exist in the correct paths
 const CommitteeDashboard = lazy(() => import('./pages/FinanceCommittee/CommitteeDashboard'));
-const BudgetReview = lazy(() => import('./pages/FinanceCommittee/BudgetReview'));
+const BudgetReviewPage = lazy(() => import('./pages/FinanceCommittee/BudgetReview'));
 const FinancialReview = lazy(() => import('./pages/FinanceCommittee/FinancialReview'));
 const CommitteeVoting = lazy(() => import('./pages/FinanceCommittee/CommitteeVoting'));
+const ScheduleMeeting = lazy(() => import('./pages/FinanceCommittee/ScheduleMeeting'));
 
 // ========== LAZY LOAD ADMIN PAGES ==========
 const UserManagementPage = lazy(() => import('./pages/Admin/UserManagementPage'));
@@ -265,7 +264,7 @@ function App() {
                                     <Route path="ledger" element={<LedgerView />} />
                                     <Route path="trial-balance" element={<TrialBalance />} />
                                     <Route path="financial-statements" element={<FinancialStatements />} />
-                                    <Route path="account-management" element={<AccountManagement />} />
+                                    {/* <Route path="account-management" element={<AccountManagement />} /> */}
                                     <Route path="reconciliation" element={<Reconciliation />} />
                                     <Route path="tax-reports" element={<TaxReportsAccountant />} />
                                   </Route>
@@ -372,9 +371,11 @@ function App() {
                                   <Route path="/committee">
                                     <Route index element={<Navigate to="/committee/dashboard" replace />} />
                                     <Route path="dashboard" element={<CommitteeDashboard />} />
-                                    <Route path="budget-review" element={<BudgetReview />} />
+                                    <Route path="budget-review" element={<BudgetReviewPage />} />
                                     <Route path="financial-review" element={<FinancialReview />} />
+                                    {/* <Route path="votes" element={<CommitteeVoting />} /> */}
                                     <Route path="voting" element={<CommitteeVoting />} />
+                                    <Route path="meetings/schedule" element={<ScheduleMeeting />} />
                                   </Route>
 
                                   {/* Profile & Settings */}

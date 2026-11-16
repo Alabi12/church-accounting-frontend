@@ -199,9 +199,9 @@ export default function Sidebar() {
       { name: 'Journal Entries', to: '/accountant/journal-entries', icon: JournalIcon, description: 'Create and manage entries' },
       { name: 'Pending Approvals', to: '/accountant/pending-approvals', icon: ClockIcon, description: 'Awaiting approval' },
       { name: 'General Ledger', to: '/accountant/ledger', icon: LedgerIcon, description: 'View ledger details' },
-      { name: 'Trial Balance', to: '/accountant/trial-balance', icon: TrialBalanceIcon, description: 'Check account balances' },
+      // { name: 'Trial Balance', to: '/accountant/trial-balance', icon: TrialBalanceIcon, description: 'Check account balances' },
       { name: 'Financial Statements', to: '/accountant/financial-statements', icon: FinancialStatementsIcon, description: 'Income Statement, Balance Sheet', badge: 'Updated' },
-      { name: 'Account Management', to: '/accountant/account-management', icon: BuildingOfficeIcon, description: 'Manage accounts' },
+      // { name: 'Account Management', to: '/accountant/account-management', icon: BuildingOfficeIcon, description: 'Manage accounts' },
       { name: 'Reconciliation', to: '/accountant/reconciliation', icon: ReconciliationIcon, description: 'Bank & cash reconciliation' },
 
     ],

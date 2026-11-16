@@ -1,5 +1,5 @@
 // pages/Accountant/AccountantDashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
@@ -51,6 +51,34 @@ const COLORS = {
   chart: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 };
 
+// ============================================================
+// CURRENCY HELPERS
+// ============================================================
+// Resolve the active currency from the user's church.
+// Your backend uses GHS by default — this honors that,
+// while letting any church override it via church.currency.
+function resolveCurrency(user) {
+  return (
+    user?.church?.currency ||
+    user?.currency ||
+    user?.settings?.currency ||
+    'GHS'
+  );
+}
+
+// Compact currency formatter for chart axes (e.g. "12.3k", "1.2M")
+// Uses Intl so it respects the currency's symbol and locale.
+function makeCompactFormatter(currency) {
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+  });
+  return (value) => formatter.format(Number(value) || 0);
+}
+
 const AccountantDashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -82,6 +110,24 @@ const AccountantDashboard = () => {
     EXPENSE: 0
   });
 
+  // Currency resolved once per user change
+  const currency = useMemo(() => resolveCurrency(user), [user]);
+  const compactCurrency = useMemo(() => makeCompactFormatter(currency), [currency]);
+
+  // Local money formatter that honors the church currency (falls back to shared util)
+  const fmtCurrency = (amount) => {
+    // If the shared util already handles currency, prefer it; otherwise use Intl
+    try {
+      return formatCurrency(amount, currency);
+    } catch {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: 2,
+      }).format(Number(amount) || 0);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(() => fetchDashboardData(true), 300000);
@@ -92,7 +138,7 @@ const AccountantDashboard = () => {
     try {
       if (showToast) setRefreshing(true);
       else setLoading(true);
-      
+
       const [pendingJournalRes, statsData, recentData, trendsData, balancesData, alertsData, accountBalancesData] = await Promise.all([
         accountantService.getJournalEntries({ status: 'PENDING' }).catch(() => ({ entries: [] })),
         accountantService.getDashboardStats().catch(() => ({
@@ -117,7 +163,7 @@ const AccountantDashboard = () => {
       const pendingEntries = pendingJournalRes.entries || [];
       setPendingApprovals(pendingEntries);
       setPendingCount(pendingEntries.length);
-      
+
       const totalPendingAmount = pendingEntries.reduce((sum, entry) => {
         const amount = entry.total_debit || entry.total_credit || 0;
         return sum + amount;
@@ -184,12 +230,12 @@ const AccountantDashboard = () => {
     const currentDate = new Date();
     const monthsToShow = selectedTimeframe === '3months' ? 3 : selectedTimeframe === '6months' ? 6 : 12;
     const trend = [];
-    
+
     for (let i = monthsToShow - 1; i >= 0; i--) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const startDate = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
       const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
-      
+
       try {
         const statement = await accountantService.getIncomeStatement(startDate, endDate);
         trend.push({
@@ -255,7 +301,7 @@ const AccountantDashboard = () => {
         </div>
         <h3 className="text-sm font-medium text-gray-500 mb-1">{title}</h3>
         <p className="text-2xl font-bold text-gray-900">
-          {isCurrency ? formatCurrency(value) : value.toLocaleString()}
+          {isCurrency ? fmtCurrency(value) : (Number(value) || 0).toLocaleString()}
         </p>
         {subtitle && <p className="text-xs text-gray-400 mt-2">{subtitle}</p>}
       </div>
@@ -273,7 +319,7 @@ const AccountantDashboard = () => {
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
                 <span className="text-gray-600">{entry.name}:</span>
               </div>
-              <span className="font-semibold text-gray-900">{formatCurrency(entry.value)}</span>
+              <span className="font-semibold text-gray-900">{fmtCurrency(entry.value)}</span>
             </div>
           ))}
         </div>
@@ -286,7 +332,7 @@ const AccountantDashboard = () => {
     fetchDashboardData(true);
   };
 
-  const totalTransactions = stats.journalEntryStats?.posted + stats.journalEntryStats?.draft || 0;
+  const totalTransactions = (stats.journalEntryStats?.posted || 0) + (stats.journalEntryStats?.draft || 0);
   const totalAccounts = Object.values(stats.accountCounts || {}).reduce((a, b) => a + b, 0);
   const netIncome = stats.netIncome || 0;
 
@@ -370,18 +416,18 @@ const AccountantDashboard = () => {
             trend={-8.2}
             isCurrency={true}
           />
-          <StatCard
+         <StatCard
             title="Net Surplus/(Deficit)"
             value={netIncome}
             subtitle={netIncome >= 0 ? 'Favorable' : 'Unfavorable'}
-            icon={CurrencyDollarIcon}
+            icon={BanknotesIcon}              // ← neutral: stack of bills
             color={netIncome >= 0 ? "blue" : "orange"}
             isCurrency={true}
           />
           <StatCard
             title="Pending Approvals"
             value={pendingCount}
-            subtitle={`${formatCurrency(pendingAmount)} awaiting review`}
+            subtitle={`${fmtCurrency(pendingAmount)} awaiting review`}
             icon={ClockIcon}
             color="yellow"
             isCurrency={false}
@@ -441,7 +487,7 @@ const AccountantDashboard = () => {
                           {formatDate(entry.entry_date || entry.created_at)}
                         </span>
                         <span className="font-medium text-purple-600">
-                          Amount: {formatCurrency(entry.total_debit || entry.total_credit || 0)}
+                          Amount: {fmtCurrency(entry.total_debit || entry.total_credit || 0)}
                         </span>
                       </div>
                     </div>
@@ -541,7 +587,8 @@ const AccountantDashboard = () => {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                    <YAxis tickFormatter={(v) => `₵${v/1000}k`} stroke="#9ca3af" fontSize={12} />
+                    {/* ✅ Dynamic YAxis formatter — respects church currency */}
+                    <YAxis tickFormatter={compactCurrency} stroke="#9ca3af" fontSize={12} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area type="monotone" dataKey="income" stroke={COLORS.income} fill="url(#incomeGradient)" name="Income" />
                     <Area type="monotone" dataKey="expenses" stroke={COLORS.expense} fill="url(#expenseGradient)" name="Expenses" />
@@ -589,7 +636,7 @@ const AccountantDashboard = () => {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Tooltip formatter={(value) => fmtCurrency(value)} />
                   <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
@@ -606,10 +653,10 @@ const AccountantDashboard = () => {
                 <div key={index} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">{item.category}</span>
-                    <span className="font-medium text-green-600">{formatCurrency(item.total)}</span>
+                    <span className="font-medium text-green-600">{fmtCurrency(item.total)}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-green-500 rounded-full h-2"
                       style={{ width: `${Math.min((item.total / stats.totalIncome) * 100, 100)}%` }}
                     />
@@ -632,10 +679,10 @@ const AccountantDashboard = () => {
                 <div key={index} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">{item.category}</span>
-                    <span className="font-medium text-red-600">{formatCurrency(item.total)}</span>
+                    <span className="font-medium text-red-600">{fmtCurrency(item.total)}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-red-500 rounded-full h-2"
                       style={{ width: `${Math.min((item.total / stats.totalExpenses) * 100, 100)}%` }}
                     />
@@ -679,7 +726,7 @@ const AccountantDashboard = () => {
                   </div>
                   <p className="text-sm font-medium text-gray-900 truncate">{account.name}</p>
                   <p className={`text-lg font-bold mt-1 ${account.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(account.balance)}
+                    {fmtCurrency(account.balance)}
                   </p>
                 </motion.div>
               ))}
@@ -735,10 +782,10 @@ const AccountantDashboard = () => {
                         {entry.description || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
-                        {entry.debit ? formatCurrency(entry.debit) : '-'}
+                        {entry.debit ? fmtCurrency(entry.debit) : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
-                        {entry.credit ? formatCurrency(entry.credit) : '-'}
+                        {entry.credit ? fmtCurrency(entry.credit) : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(entry.status)}`}>
@@ -752,7 +799,7 @@ const AccountantDashboard = () => {
                     <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
                       <DocumentTextIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
                       <p className="text-sm mb-2">No recent journal entries found</p>
-                      <Link 
+                      <Link
                         to="/accountant/journal-entries/add"
                         className="text-sm text-[rgb(31,178,86)] hover:underline"
                       >
